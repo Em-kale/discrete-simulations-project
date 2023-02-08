@@ -1,21 +1,38 @@
 import queue
 
-class Queue(object):
-    #Define each queue
-
-    def __init__(self):
+class Inspector(object):
+    def __init__(self): 
+        arrival_queue = [] 
         pass 
 
     def put(): 
-        #TODO: function to add component/product to queue 
+        #TODO: function to add component to inspector/ generate departure event? 
         pass 
 
     def get():
-        #TODO: function to remove component/product from queue 
+        #TODO: remove component from inspector and put in workstation buffer if one of right type is available
+        pass
+
+class Workstation(object):
+    #Define each queue
+
+    def __init__(self):
+        buffer1 = queue.Queue(maxsize=2)
+        buffer2 = queue.Queue(maxsize=2)
+    
+
+    def put(): 
+        #TODO: function to add component to workstation 
+        # If Both buffers have at least one component, and
+        # If workstation is available, remove components from buffers and add one product to workstation (generate workstation departure event)
+        pass 
+
+    def get():
+        #TODO: remove products from workstation
         pass
 
     def scheduleDeparture(): 
-        #TODO: function to schedule departure from queue 
+        #TODO: 
         pass 
 
 class Sim(object):
@@ -59,3 +76,7 @@ simulation.scheduleArrival()
 
 #Loop 
 while(simulation.total_departures < simulation.total_customers):
+    #Get next item from FEL 
+    #Do stuff
+    #Repeat
+    pass; 
