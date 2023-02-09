@@ -113,11 +113,11 @@ class Sim(object):
         #Create future event list
         self.FEL = queue.PriorityQueue()
         
-    def scheduleArrival():
+    def scheduleArrival(self):
         #TODO: schedule new arrival to the system 
         pass 
 
-    def processDeparture():
+    def processDeparture(self):
         #TODO: Process Departure from system
         pass
 
