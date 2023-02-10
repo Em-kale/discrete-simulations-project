@@ -1,4 +1,5 @@
 import queue
+import random
 
 ARRIVAL_EVENT = 1
 DEPARTURE_EVENT = 2
@@ -69,9 +70,16 @@ class Inspector(object):
             arrivalTime = self._Clock
             componentID = 1
             component = (arrivalTime, componentID)
-        else: 
-            #randomly decide if it should return component of type 1 or 2
-            pass 
+        elif self.inspector_ID == 2:
+            arrivalTime = self._Clock
+            componentID = random.randint(2, 3)
+            component = (arrivalTime, componentID)
+        else:
+            #invalid inspector ID
+            component = None
+            
+        return component
+  
 
 class Workstation(object):
     #Define each queue
