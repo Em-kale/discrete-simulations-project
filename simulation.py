@@ -1,12 +1,13 @@
 import queue
 
 ARRIVAL_EVENT = 1
-DEPARTURE_EVENT = 2
-
+INSPECTOR_DEPARTURE_EVENT = 2
+WORKSTATION_DEPARTURE_EVENT = 2
 class Inspector(object):
     def __init__(self, inspector_ID): 
         self._arrival = ARRIVAL_EVENT      
-        self._departure = DEPARTURE_EVENT     
+        self._inspector_departure = INSPECTOR_DEPARTURE_EVENT     
+        self._workstation_departure = WORKSTATION_DEPARTURE_EVENT 
 
         self.in_service = []
         self.inspector_ID = inspector_ID 
@@ -49,10 +50,10 @@ class Inspector(object):
         """ This functions schedules a departure event for a given component"""
         if is_blocked:
             deltaTime = 1.0
-            depart = (self._Clock + deltaTime, self._departure, self.inspector_ID, component)
+            depart = (self._Clock + deltaTime, self._inspector_departure, self.inspector_ID, component)
         else:
             ServiceTime = self.getServiceTime()
-            depart = (self._Clock + ServiceTime, self._departure, self.inspector_ID, component)
+            depart = (self._Clock + ServiceTime, self._inspector_departure, self.inspector_ID, component)
 
         return depart  
 
@@ -79,7 +80,7 @@ class Workstation(object):
     def __init__(self, workstation_ID):
 
         self._arrival = ARRIVAL_EVENT      
-        self._departure = DEPARTURE_EVENT  
+        self._workstation_departure = WORKSTATION_DEPARTURE_EVENT  
 
         self.waiting_buffer_one = []
         self.waiting_buffer_two = []
@@ -107,7 +108,7 @@ class Workstation(object):
                 #buffer is full, should never reach here
                 pass
             """ if buffer one has at least one component, put it in service """
-            if len(self.waiting_buffer_one > 0):
+            if len(self.waiting_buffer_one) > 0:
                 product = (self.waiting_buffer_one.pop(0), None)
                 self.in_service.append(product)
                 depart = self.scheduleDeparture(product)
@@ -132,7 +133,7 @@ class Workstation(object):
                     pass
 
             """ if both buffers have at least one component, put them in service """
-            if len(self.waiting_buffer_one > 0) and len(self.waiting_buffer_two) > 0:
+            if len(self.waiting_buffer_one) > 0 and len(self.waiting_buffer_two) > 0:
                 product = (self.waiting_buffer_one.pop(0), self.waiting_buffer_two.pop(0))
                 self.in_service.append(product)
                 depart = self.scheduleDeparture(product)
@@ -176,7 +177,7 @@ class Workstation(object):
 
     def scheduleDeparture(self, product): 
         ServiceTime = self.getServiceTime()
-        depart = (self._Clock + ServiceTime, self._departure, self.workstation_ID, product)
+        depart = (self._Clock + ServiceTime, self._workstation_departure, self.workstation_ID, product)
         return depart  
 
     def getServiceTime(self):
@@ -194,8 +195,8 @@ class Sim(object):
         self._Clock = 0.0 
 
         self._arrival = 1
-        self._inspector_departure = 2
-        self._workstation_departure = 3 
+        self._inspector_departure = INSPECTOR_DEPARTURE_EVENT
+        self._workstation_departure = WORKSTATION_DEPARTURE_EVENT
 
         #Number of queues to create
         self.number_of_queues = 5  
@@ -204,7 +205,7 @@ class Sim(object):
         self.queue_id = 0
 
         #Total number of customers the system will run for 
-        self.total_customers = 10
+        self.total_customers = 100
 
         #Total number of departures from system 
         self.total_departures = 0 
@@ -234,8 +235,9 @@ class Sim(object):
         w1_lengths = self.workstation_1.getBufferLengths() 
         w2_lengths = self.workstation_1.getBufferLengths() 
         w3_lengths = self.workstation_1.getBufferLengths() 
-
-        if(component == 'c1'): 
+        
+        print("looking for buffer", component)
+        if(component[1] == 'c1'): 
             if w1_lengths[0] >= 2:
                 if w2_lengths[0] < 2 and w2_lengths[0] < w3_lengths[0]: 
                     event = self.workstation_2.put(1, (clock, component), clock)
@@ -254,12 +256,12 @@ class Sim(object):
                     event = self.workstation_1.put(1, (clock, component), clock)
             else:
                 event = self.workstation_1.put(1, (clock, component), clock)
-        elif(component == 'c2'): 
+        elif(component[1] == 'c2'): 
             if w2_lengths[1] >= 2:
                 event = self.inspector_2.put((clock, component), clock, True)
             else: 
                 event = self.workstation_2.put(2, (clock, component), clock)
-        elif(component == 'c3'): 
+        elif(component[1] == 'c3'): 
             if w3_lengths[1] >= 2:
                 event = self.inspector_2.put((clock, component), clock, True)
             else: 
@@ -267,16 +269,19 @@ class Sim(object):
         else: 
             #something horrible has happened
             event = None 
-
+            
+        print("buffer event", event)
         return event
     
     def processWorkstationDeparture(self, clock, ID): 
         if(ID == 1):
-            self.inspector_1.get(clock)
+            product = self.workstation_1.get(clock)
         elif(ID == 2): 
-            self.inspector_2.get(clock)
+            product = self.workstation_2.get(clock)
         elif(ID == 3): 
-            self.workstation_3.get(clock)
+            product = self.workstation_3.get(clock)
+        
+        return product 
 
 
 #Create instance of simulation
@@ -294,10 +299,19 @@ while(simulation.total_departures < simulation.total_customers):
     simulation._Clock = event[0]
     
     if(event[1] == simulation._arrival):
-        simulation.scheduleArrival(simulation._Clock, event[2], event[3])
+        print("arrival", event)
+        response_event = simulation.scheduleArrival(simulation._Clock, event[2], event[3])
+        if(response_event != None): 
+            simulation.FEL.put(response_event)
     elif(event[1] == simulation._inspector_departure):
-        simulation.processInspectionDeparture(simulation._Clock, event[2], event[3])
+        print("leaving inspector", event)
+        response_event = simulation.processInspectionDeparture(simulation._Clock, event[2], event[3])
+        if(response_event != None): 
+            simulation.FEL.put(response_event)
     elif(event[1] == simulation._workstation_departure): 
         simulation.total_departures = simulation.total_departures + 1
-        simulation.processWorkstationDeparture(simulation._Clock, event[2])
+        final_product = simulation.processWorkstationDeparture(simulation._Clock, event[2])
+        print("Product", final_product)
+    elif(event == None): 
+        pass; 
     
