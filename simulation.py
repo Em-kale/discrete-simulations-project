@@ -1,9 +1,12 @@
 import queue
 
+ARRIVAL_EVENT = 1
+DEPARTURE_EVENT = 2
+
 class Inspector(object):
     def __init__(self, inspector_ID): 
-        self._arrival = 1
-        self._departure = 2
+        self._arrival = ARRIVAL_EVENT      
+        self._departure = DEPARTURE_EVENT     
 
         self.waiting_queue = []
         self.in_service = []
@@ -21,7 +24,7 @@ class Inspector(object):
         self._Clock = clock
 
         if self._Blocked:
-            """ add to queue if server busy"""
+            """ add to queue if inspector is busy"""
             self.waiting_queue.append(component)
 
         else:
@@ -55,7 +58,7 @@ class Inspector(object):
             self._Blocked = False
             depart = None
 
-        return cust, depart 
+        return component, depart 
 
 
     def scheduleDeparture(self, component):
