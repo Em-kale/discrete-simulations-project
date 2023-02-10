@@ -42,7 +42,7 @@ class Inspector(object):
         next_component = self.getNextComponent()
         self.in_service.append(next_component)
         """ schedule departure for next component"""
-        depart = self.scheduleDeparture(next_component)
+        depart = self.scheduleDeparture(next_component, False)
 
         return component, depart 
 
@@ -69,12 +69,15 @@ class Inspector(object):
         if self.inspector_ID == 1:
             # return component of type 1
             arrivalTime = self._Clock
-            componentID = 1
+            componentID = 'c1'
             component = (arrivalTime, componentID)
         elif self.inspector_ID == 2:
             arrivalTime = self._Clock
             componentID = random.randint(2, 3)
-            component = (arrivalTime, componentID)
+            if(componentID == 2):
+                component = (arrivalTime, 'c2')
+            elif(componentID == 3):
+                component = (arrivalTime, 'c3')
         else:
             #invalid inspector ID
             component = None
@@ -234,17 +237,23 @@ class Sim(object):
         elif(ID == 2): 
             event = self.inspector_2.put((clock, component), clock, False)
         
+        return event
 
-        self.FEL.put(event)
+  
 
-    def processInspectionDeparture(self, clock, ID, component):
+    def processInspectionDeparture(self, clock, ID):
         #TODO: Process Departure from inspector
-        
+        if(ID == 1):
+            event = self.inspector_1.get(clock)
+        elif(ID == 2):
+            event = self.inspector_2.get(clock) 
+ 
+        component = event[0] 
+
         w1_lengths = self.workstation_1.getBufferLengths() 
         w2_lengths = self.workstation_1.getBufferLengths() 
         w3_lengths = self.workstation_1.getBufferLengths() 
-        
-        print("looking for buffer", component)
+   
         if(component[1] == 'c1'): 
             if w1_lengths[0] >= 2:
                 if w2_lengths[0] < 2 and w2_lengths[0] < w3_lengths[0]: 
@@ -281,7 +290,6 @@ class Sim(object):
             #something horrible has happened
             event = None 
 
-        print("buffer event", event)
         return event
     
     def processWorkstationDeparture(self, clock, ID): 
@@ -304,7 +312,6 @@ event2 = (simulation._Clock, simulation._arrival, 2, 'c2')
 simulation.FEL.put(event)
 simulation.FEL.put(event2)
 
-#Loop 
 while(simulation.total_departures < simulation.total_customers):
     event = simulation.FEL.get()
     simulation._Clock = event[0]
@@ -315,8 +322,7 @@ while(simulation.total_departures < simulation.total_customers):
         if(response_event != None): 
             simulation.FEL.put(response_event)
     elif(event[1] == simulation._inspector_departure):
-        print("leaving inspector", event)
-        response_event = simulation.processInspectionDeparture(simulation._Clock, event[2], event[3])
+        response_event = simulation.processInspectionDeparture(simulation._Clock, event[2])
         if(response_event != None): 
             simulation.FEL.put(response_event)
     elif(event[1] == simulation._workstation_departure): 
