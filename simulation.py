@@ -113,7 +113,6 @@ class Workstation(object):
         
         """if workstation one, only has one buffer"""
         if self.workstation_ID == 1: 
-            print("here")
             if len(self.waiting_buffer_one) < 2: 
                 self.waiting_buffer_one.append(component)
             else:
@@ -236,9 +235,9 @@ class Sim(object):
 
     def scheduleArrival(self, clock, ID, component):
         if(ID == 1):
-            event = self.inspector_1.put((clock, component), clock, False)
+            event = self.inspector_1.put(component, clock, False)
         elif(ID == 2): 
-            event = self.inspector_2.put((clock, component), clock, False)
+            event = self.inspector_2.put(component, clock, False)
         
         return event
 
@@ -247,52 +246,46 @@ class Sim(object):
     def processInspectionDeparture(self, clock, ID):
         #TODO: Process Departure from inspector
         if(ID == 1):
-            event = self.inspector_1.get(clock)
+            component, event = self.inspector_1.get(clock)
         elif(ID == 2):
-            event = self.inspector_2.get(clock) 
+            component, event = self.inspector_2.get(clock) 
  
-        component = event[0] 
 
         w1_lengths = self.workstation_1.getBufferLengths() 
         w2_lengths = self.workstation_1.getBufferLengths() 
         w3_lengths = self.workstation_1.getBufferLengths() 
-        
+      
         if(component[1] == 'c1'): 
             if w1_lengths[0] >= 2:
                 if w2_lengths[0] < 2 and w2_lengths[0] < w3_lengths[0]: 
-                    event = self.workstation_2.put(1, (clock, component), clock)
+                    event = self.workstation_2.put(1, (component), clock)
                 elif w3_lengths[0] < 2 and w3_lengths[0] < w2_lengths[0]: 
-                    event = self.workstation_3.put(1, (clock, component), clock)
+                    event = self.workstation_3.put(1, (component), clock)
                 elif w3_lengths[0] < 2 and w3_lengths[0] == w2_lengths[0]: 
-                    event = self.workstation_2.put(1, (clock, component), clock)
+                    event = self.workstation_2.put(1, (component), clock)
                 else: 
-                    event = self.inspector_1.put((clock, component), clock, True)
-                    self.FEL.put(event)
+                    event = self.inspector_1.put((component), clock, True)
             elif(w1_lengths[0] == 1): 
-                print("here", component)
+                
                 if w2_lengths[0] == 0: 
-                    event = self.workstation_2.put(1, (clock, component), clock)
+                    event = self.workstation_2.put(1, (component), clock)
                 elif w3_lengths[0] == 0: 
-                    event = self.workstation_3.put(1, (clock, component), clock)
+                    event = self.workstation_3.put(1, (component), clock)
                 else:    
-                    event = self.workstation_1.put(1, (clock, component), clock)
+                    event = self.workstation_1.put(1, (component), clock)
             else:
-                event = self.workstation_1.put(1, (clock, component), clock)
+                event = self.workstation_1.put(1, (component), clock)
         elif(component[1] == 'c2'): 
-        
             if w2_lengths[1] >= 2:
-                event = self.inspector_2.put((clock, component), clock, True)
-         
-                self.FEL.put(event)
+                event = self.inspector_2.put((component), clock, True)
             else: 
-                event = self.workstation_2.put(2, (clock, component), clock)
-                print(event)
+                event = self.workstation_2.put(2, (component), clock)
+
         elif(component[1] == 'c3'): 
             if w3_lengths[1] >= 2:
-                event = self.inspector_2.put((clock, component), clock, True)
-                self.FEL.put(event)
+                event = self.inspector_2.put((component), clock, True)
             else: 
-                event = self.workstation_3.put(3, (clock, component), clock)
+                event = self.workstation_3.put(3, (component), clock)
         else: 
             #something horrible has happened
             event = None 
@@ -301,11 +294,11 @@ class Sim(object):
     
     def processWorkstationDeparture(self, clock, ID): 
         if(ID == 1):
-            product = self.workstation_1.get(clock)
+            product, event = self.workstation_1.get(clock)
         elif(ID == 2): 
-            product = self.workstation_2.get(clock)
+            product, event = self.workstation_2.get(clock)
         elif(ID == 3): 
-            product = self.workstation_3.get(clock)
+            product, event = self.workstation_3.get(clock)
         
         return product 
 
@@ -313,17 +306,20 @@ class Sim(object):
 #Create instance of simulation
 simulation = Sim() 
 
-event = (simulation._Clock, simulation._arrival, 1, 'c1')
-event2 = (simulation._Clock, simulation._arrival, 2, 'c2')
+event = (simulation._Clock, simulation._arrival, 1, (0.0, 'c1'))
+event2 = (simulation._Clock, simulation._arrival, 2, (0.0, 'c2'))
 
 simulation.FEL.put(event)
 simulation.FEL.put(event2)
 
 while(simulation.total_departures < simulation.total_customers):
     event = simulation.FEL.get()
-    print(event)
     simulation._Clock = event[0]
-    
+    print(event)
+    print("event", event[1])
+    print("ID", event[2])
+    print("Component Type", event[3])
+
     if(event[1] == simulation._arrival):
         print("arrival", event)
         response_event = simulation.scheduleArrival(simulation._Clock, event[2], event[3])
@@ -331,6 +327,7 @@ while(simulation.total_departures < simulation.total_customers):
             simulation.FEL.put(response_event)
     elif(event[1] == simulation._inspector_departure):
         response_event = simulation.processInspectionDeparture(simulation._Clock, event[2])
+        print("response_event", response_event)
         if(response_event != None): 
             simulation.FEL.put(response_event)
     elif(event[1] == simulation._workstation_departure): 
