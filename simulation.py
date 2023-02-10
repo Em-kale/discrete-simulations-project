@@ -8,11 +8,9 @@ class Inspector(object):
         self._arrival = ARRIVAL_EVENT      
         self._departure = DEPARTURE_EVENT     
 
-        self.waiting_queue = []
         self.in_service = []
         self.inspector_ID = inspector_ID 
 
-        self._Busy = False
         self._Clock = 0.0 
         
 
@@ -23,18 +21,11 @@ class Inspector(object):
         """ update clock"""
         self._Clock = clock
 
-        if self._Busy:
-            """ add to queue if inspector is busy"""
-            self.waiting_queue.append(component)
-            depart = None
+        """ start service """
+        self.in_service.append(component)
+        depart = self.scheduleDeparture(component)
 
-        else:
-            """ start service if inspector is free """
-            self._Busy = True
-            self.in_service.append(component)
-            depart = self.scheduleDeparture(component)
-
-            """update statistic here eventually """
+        """update statistic here eventually """
             
         return depart
 
@@ -45,20 +36,11 @@ class Inspector(object):
         """ update clock"""
         self._Clock = clock
 
-        """ if there is a component waiting to be serviced, schedule next departure"""
-        if (len(self.waiting_queue) > 0):
-            """ move component from queue to service"""
-            
-            component1 = self.waiting_queue.pop(0)
-            self.in_service.append(component1)
- 
-            """ schedule departure for head-of-line component"""
-            depart = self.scheduleDeparture(component1)
-        
-        else:
-            """ If no components are available to service, set busy to false"""
-            self._Busy = False
-            depart = None
+        """ get next component to be serviced"""
+        component1 = self.getNextComponent()
+        self.in_service.append(component1)
+        """ schedule departure for next component"""
+        depart = self.scheduleDeparture(component1)
 
         return component, depart 
 
@@ -73,7 +55,7 @@ class Inspector(object):
     def getServiceTime(self):
         """ This function gets the service time for a component from the file""" 
 
-        #temporarily just returns set value
+        #temporarily just returns constant value
         return 0.25
 
     def getNextComponent(self): 
@@ -87,11 +69,6 @@ class Inspector(object):
             #randomly decide if it should return component of type 1 or 2
             pass 
 
-    def print_state(self):
-        print("waiting_queue: ", self.waiting_queue)
-        print("in_service: ", self.in_service)
-        print("blocked: ", self._Busy)
-        print("clock: ", self._Clock)
 
 class Workstation(object):
     #Define each queue
@@ -130,6 +107,21 @@ class Workstation(object):
         #generate product from in_service components 
         self.in_service.pop() 
         #return product
+
+        # """ if there is a component waiting to be serviced, schedule next departure"""
+        # if (len(self.waiting_queue) > 0):
+        #     """ move component from queue to service"""
+            
+        #     component1 = self.waiting_queue.pop(0)
+        #     self.in_service.append(component1)
+ 
+        #     """ schedule departure for head-of-line component"""
+        #     depart = self.scheduleDeparture(component1)
+        
+        # else:
+        #     """ If no components are available to service, set busy to false"""
+        #     self._Busy = False
+        #     depart = None
 
         #If both buffers are full, should generate a new departure event
         departure_event = None 
@@ -183,7 +175,6 @@ simulation = Sim()
 
 #Schedule First Arrival
 simulation.scheduleArrival() 
-
 
 #Loop 
 while(simulation.total_departures < simulation.total_customers):
