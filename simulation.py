@@ -3,7 +3,7 @@ import random
 
 ARRIVAL_EVENT = 1
 INSPECTOR_DEPARTURE_EVENT = 2
-WORKSTATION_DEPARTURE_EVENT = 2
+WORKSTATION_DEPARTURE_EVENT = 3
 class Inspector(object):
     def __init__(self, inspector_ID): 
         self._arrival = ARRIVAL_EVENT      
@@ -113,6 +113,7 @@ class Workstation(object):
         
         """if workstation one, only has one buffer"""
         if self.workstation_ID == 1: 
+            print("here")
             if len(self.waiting_buffer_one) < 2: 
                 self.waiting_buffer_one.append(component)
             else:
@@ -123,12 +124,14 @@ class Workstation(object):
                 product = (self.waiting_buffer_one.pop(0), None)
                 self.in_service.append(product)
                 depart = self.scheduleDeparture(product)
+                
             else:
                 depart = None
 
         elif self.workstation_ID == 2 or self.workstation_ID == 3: 
             """ if buffer one isn't full, add component """
             if buffer == 1:
+                print("adding to buffer 1", component)
                 if len(self.waiting_buffer_one) < 2:
                     self.waiting_buffer_one.append(component)
                 else:
@@ -162,7 +165,7 @@ class Workstation(object):
 
         if self.workstation_ID == 1: 
             """ if there are components waiting to be serviced, schedule next departure"""
-            if len(self.waiting_buffer_one > 0):
+            if len(self.waiting_buffer_one) > 0:
                 """ move component from queue to service"""
                 product = (self.waiting_buffer_one.pop(0), None)
                 self.in_service.append(product)
@@ -253,7 +256,7 @@ class Sim(object):
         w1_lengths = self.workstation_1.getBufferLengths() 
         w2_lengths = self.workstation_1.getBufferLengths() 
         w3_lengths = self.workstation_1.getBufferLengths() 
-   
+        
         if(component[1] == 'c1'): 
             if w1_lengths[0] >= 2:
                 if w2_lengths[0] < 2 and w2_lengths[0] < w3_lengths[0]: 
@@ -266,20 +269,24 @@ class Sim(object):
                     event = self.inspector_1.put((clock, component), clock, True)
                     self.FEL.put(event)
             elif(w1_lengths[0] == 1): 
+                print("here", component)
                 if w2_lengths[0] == 0: 
                     event = self.workstation_2.put(1, (clock, component), clock)
                 elif w3_lengths[0] == 0: 
                     event = self.workstation_3.put(1, (clock, component), clock)
-                else: 
+                else:    
                     event = self.workstation_1.put(1, (clock, component), clock)
             else:
                 event = self.workstation_1.put(1, (clock, component), clock)
         elif(component[1] == 'c2'): 
+        
             if w2_lengths[1] >= 2:
                 event = self.inspector_2.put((clock, component), clock, True)
+         
                 self.FEL.put(event)
             else: 
                 event = self.workstation_2.put(2, (clock, component), clock)
+                print(event)
         elif(component[1] == 'c3'): 
             if w3_lengths[1] >= 2:
                 event = self.inspector_2.put((clock, component), clock, True)
@@ -314,6 +321,7 @@ simulation.FEL.put(event2)
 
 while(simulation.total_departures < simulation.total_customers):
     event = simulation.FEL.get()
+    print(event)
     simulation._Clock = event[0]
     
     if(event[1] == simulation._arrival):
@@ -331,3 +339,4 @@ while(simulation.total_departures < simulation.total_customers):
         print("Product", final_product)
     elif(event == None): 
         pass; 
+    
