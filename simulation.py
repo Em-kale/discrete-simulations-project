@@ -238,32 +238,32 @@ class Sim(object):
         if(component == 'c1'): 
             if w1_lengths[0] >= 2:
                 if w2_lengths[0] < 2 and w2_lengths[0] < w3_lengths[0]: 
-                    event = self.workstation_2.put()
+                    event = self.workstation_2.put(1, (clock, component), clock)
                 elif w3_lengths[0] < 2 and w3_lengths[0] < w2_lengths[0]: 
-                    event = self.workstation_3.put()
+                    event = self.workstation_3.put(1, (clock, component), clock)
                 elif w3_lengths[0] < 2 and w3_lengths[0] == w2_lengths[0]: 
-                    event = self.workstation_2.put()
+                    event = self.workstation_2.put(1, (clock, component), clock)
                 else: 
                     event = self.inspector_1.put((clock, component), clock, True)
             elif(w1_lengths[0] == 1): 
                 if w2_lengths[0] == 0: 
-                    event = self.workstation_2.put()
+                    event = self.workstation_2.put(1, (clock, component), clock)
                 elif w3_lengths[0] == 0: 
-                    event = self.workstation_3.put()
+                    event = self.workstation_3.put(1, (clock, component), clock)
                 else: 
-                    event = self.workstation_1.put()
+                    event = self.workstation_1.put(1, (clock, component), clock)
             else:
-                event = self.workstation_1.put()
+                event = self.workstation_1.put(1, (clock, component), clock)
         elif(component == 'c2'): 
             if w2_lengths[1] >= 2:
                 event = self.inspector_2.put((clock, component), clock, True)
             else: 
-                event = self.workstation_2.put()
+                event = self.workstation_2.put(2, (clock, component), clock)
         elif(component == 'c3'): 
             if w3_lengths[1] >= 2:
                 event = self.inspector_2.put((clock, component), clock, True)
             else: 
-                event = self.workstation_3.put()
+                event = self.workstation_3.put(3, (clock, component), clock)
         else: 
             #something horrible has happened
             event = None 
@@ -287,9 +287,6 @@ event2 = (simulation._Clock, simulation._arrival, 2, 'c2')
 
 simulation.FEL.put(event)
 simulation.FEL.put(event2)
-
-#Schedule First Arrival
-simulation.scheduleArrival() 
 
 #Loop 
 while(simulation.total_departures < simulation.total_customers):
