@@ -95,14 +95,17 @@ class Workstation(object):
 
 class Sim(object):
     def __init__(self):
+        self._Clock = 0.0 
+
+        self._arrival = 1
+        self._inspector_departure = 2
+        self._workstation_departure = 3 
+
         #Number of queues to create
         self.number_of_queues = 5  
         
         #starting queue ID 
         self.queue_id = 0
-
-        #list of queues for simulation 
-        self.queue_list = []
 
         #Total number of customers the system will run for 
         self.total_customers = 10
@@ -112,24 +115,94 @@ class Sim(object):
 
         #Create future event list
         self.FEL = queue.PriorityQueue()
-        
-    def scheduleArrival():
-        #TODO: schedule new arrival to the system 
-        pass 
 
-    def processDeparture():
-        #TODO: Process Departure from system
-        pass
+        #initialize inspectors and workstations 
+        self.inspector_1 = Inspector(1)
+        self.inspector_2 = Inspector(2)
+        self.workstation_1 = Workstation(1)
+        self.workstation_2 = Workstation(2)
+        self.workstation_3 = Workstation(3)
+
+    def scheduleArrival(self, clock, ID, component):
+        if(ID == 1):
+            event = self.inspector_1.put((clock, component), clock, False)
+        elif(ID == 2): 
+            event = self.inspector_2.put((clock, component), clock, False)
+        
+        self.FEL.put(event)
+
+    def processInspectionDeparture(self, clock, ID, component):
+        #TODO: Process Departure from inspector
+        
+        w1_lengths = self.workstation_1.getBufferLengths() 
+        w2_lengths = self.workstation_1.getBufferLengths() 
+        w3_lengths = self.workstation_1.getBufferLengths() 
+
+        if(component == 'c1'): 
+            if w1_lengths[0] >= 2:
+                if w2_lengths[0] < 2 and w2_lengths[0] < w3_lengths[0]: 
+                    event = self.workstation_2.put()
+                elif w3_lengths[0] < 2 and w3_lengths[0] < w2_lengths[0]: 
+                    event = self.workstation_3.put()
+                elif w3_lengths[0] < 2 and w3_lengths[0] == w2_lengths[0]: 
+                    event = self.workstation_2.put()
+                else: 
+                    event = self.inspector_1.put((clock, component), clock, True)
+            elif(w1_lengths[0] == 1): 
+                if w2_lengths[0] == 0: 
+                    event = self.workstation_2.put()
+                elif w3_lengths[0] == 0: 
+                    event = self.workstation_3.put()
+                else: 
+                    event = self.workstation_1.put()
+            else:
+                event = self.workstation_1.put()
+        elif(component == 'c2'): 
+            if w2_lengths[1] >= 2:
+                event = self.inspector_2.put((clock, component), clock, True)
+            else: 
+                event = self.workstation_2.put()
+        elif(component == 'c3'): 
+            if w3_lengths[1] >= 2:
+                event = self.inspector_2.put((clock, component), clock, True)
+            else: 
+                event = self.workstation_3.put()
+        else: 
+            #something horrible has happened
+            event = None 
+
+        return event
+    
+    def processWorkstationDeparture(self, clock, ID): 
+        if(ID == 1):
+            self.inspector_1.get(clock)
+        elif(ID == 2): 
+            self.inspector_2.get(clock)
+        elif(ID == 3): 
+            self.workstation_3.get(clock)
 
 #Create instance of simulation
 simulation = Sim() 
+
+event = (simulation._Clock, simulation._arrival, 1, 'c1')
+event2 = (simulation._Clock, simulation._arrival, 2, 'c2')
+
+simulation.FEL.put(event)
+simulation.FEL.put(event2)
 
 #Schedule First Arrival
 simulation.scheduleArrival() 
 
 #Loop 
 while(simulation.total_departures < simulation.total_customers):
-    #Get next item from FEL 
-    #Do stuff
-    #Repeat
-    pass; 
+    event = simulation.FEL.get()
+    simulation._Clock = event[0]
+    
+    if(event[1] == simulation._arrival):
+        simulation.scheduleArrival(simulation._Clock, event[2], event[3])
+    elif(event[1] == simulation._inspector_departure):
+        simulation.processInspectionDeparture(simulation._Clock, event[2], event[3])
+    elif(event[1] == simulation._workstation_departure): 
+        simulation.total_departures = simulation.total_departures + 1
+        simulation.processWorkstationDeparture(simulation._Clock, event[2])
+    
