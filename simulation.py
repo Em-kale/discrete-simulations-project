@@ -2,39 +2,77 @@ import queue
 
 class Inspector(object):
     def __init__(self, inspector_ID): 
-        self.in_service = [] 
+        self._arrival = 1
+        self._departure = 2
+
+        self.waiting_queue = []
+        self.in_service = []
         self.inspector_ID = inspector_ID 
 
-    def put(self, component, blocked): 
-        #function to add component to inspector/ generate departure event
-        self.in_service.append(component)
-        return self.generateDepartureEvent(blocked)
-
-    def generateDepartureEvent(component, blocked): 
-        #Generate departure 
-        if(blocked):
-            #Return departure event with time + some constant
-            pass
-        else: 
-            #Return departure event with time + next service time from file
-            pass
-
-    def getNextComponent(self): 
-        if self.inspector_ID == 1:
-            # return component of type 1
-            pass
-        else: 
-            #randomly decide if it should return component of type 1 or 2
-            pass 
-
-    def get(self):
-        #remove component from inspector and put in workstation buffer if one of right type is available
+        self._Blocked = False
+        self._Clock = 0.0 
         
-        leaving_component = self.in_service.pop()
-        new_component = self.getNextComponent() 
-        self.in_service.append(new_component) 
 
-        return leaving_component, self.generateDepartureEvent(False)
+    def put(self, component, clock): 
+        """ add a component into queue"""
+        """ component = (arrivalTime, componentID) """
+
+        """ update clock"""
+        self._Clock = clock
+
+        if self._Blocked:
+            """ add to queue if server busy"""
+            self.waiting_queue.append(component)
+
+        else:
+            """ start service if inspector is free """
+            self._Blocked = True
+            self.in_service.append(component)
+            depart = self.scheduleDeparture(component)
+
+            """update statistic here eventually """
+            
+        return depart
+
+    def get(self, clock):
+        """ get component from the service queue"""
+        component = self.in_service.pop(0)
+
+        """ update clock"""
+        self._Clock = clock
+
+        """ if there is a component waiting to be serviced, schedule next departure"""
+        if (len(self.waiting_queue) > 0):
+            """ move component from queue to service"""
+            
+            component1 = self.waiting_queue.pop(0)
+            self.in_service.append(component1)
+ 
+            """ schedule departure for head-of-line component"""
+            depart = self.scheduleDeparture(component1)
+        
+        else:
+            self._Blocked = False
+            depart = None
+
+
+    def scheduleDeparture(self, component):
+        ServiceTime = self.getServiceTime()
+        depart = (self._Clock + ServiceTime, self._departure, self.inspector_ID, component)
+        return depart  
+
+
+    def getServiceTime(self):
+        """ This function gets the service time for a component from the file""" 
+        return 0.25
+
+    def print_state(self):
+        print("waiting_queue: ", self.waiting_queue)
+        print("in_service: ", self.in_service)
+        print("blocked: ", self._Blocked)
+        print("clock: ", self._Clock)
+
+
 
 class Workstation(object):
     #Define each queue
@@ -126,6 +164,7 @@ simulation = Sim()
 
 #Schedule First Arrival
 simulation.scheduleArrival() 
+
 
 #Loop 
 while(simulation.total_departures < simulation.total_customers):
