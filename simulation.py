@@ -55,6 +55,8 @@ class Inspector(object):
             self._Blocked = False
             depart = None
 
+        return cust, depart 
+
 
     def scheduleDeparture(self, component):
         ServiceTime = self.getServiceTime()
