@@ -247,6 +247,7 @@ class Sim(object):
                     event = self.workstation_2.put(1, (clock, component), clock)
                 else: 
                     event = self.inspector_1.put((clock, component), clock, True)
+                    self.FEL.put(event)
             elif(w1_lengths[0] == 1): 
                 if w2_lengths[0] == 0: 
                     event = self.workstation_2.put(1, (clock, component), clock)
@@ -259,17 +260,19 @@ class Sim(object):
         elif(component[1] == 'c2'): 
             if w2_lengths[1] >= 2:
                 event = self.inspector_2.put((clock, component), clock, True)
+                self.FEL.put(event)
             else: 
                 event = self.workstation_2.put(2, (clock, component), clock)
         elif(component[1] == 'c3'): 
             if w3_lengths[1] >= 2:
                 event = self.inspector_2.put((clock, component), clock, True)
+                self.FEL.put(event)
             else: 
                 event = self.workstation_3.put(3, (clock, component), clock)
         else: 
             #something horrible has happened
             event = None 
-            
+
         print("buffer event", event)
         return event
     
