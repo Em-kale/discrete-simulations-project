@@ -12,7 +12,7 @@ class Inspector(object):
         self.in_service = []
         self.inspector_ID = inspector_ID 
 
-        self._Blocked = False
+        self._Busy = False
         self._Clock = 0.0 
         
 
@@ -23,13 +23,14 @@ class Inspector(object):
         """ update clock"""
         self._Clock = clock
 
-        if self._Blocked:
+        if self._Busy:
             """ add to queue if inspector is busy"""
             self.waiting_queue.append(component)
+            depart = None
 
         else:
             """ start service if inspector is free """
-            self._Blocked = True
+            self._Busy = True
             self.in_service.append(component)
             depart = self.scheduleDeparture(component)
 
@@ -55,13 +56,15 @@ class Inspector(object):
             depart = self.scheduleDeparture(component1)
         
         else:
-            self._Blocked = False
+            """ If no components are available to service, set busy to false"""
+            self._Busy = False
             depart = None
 
         return component, depart 
 
 
     def scheduleDeparture(self, component):
+        """ This functions schedules a departure event for a given component"""
         ServiceTime = self.getServiceTime()
         depart = (self._Clock + ServiceTime, self._departure, self.inspector_ID, component)
         return depart  
@@ -69,15 +72,26 @@ class Inspector(object):
 
     def getServiceTime(self):
         """ This function gets the service time for a component from the file""" 
+
+        #temporarily just returns set value
         return 0.25
+
+    def getNextComponent(self): 
+        """ This function generates the next component when the previous one departs - depends on the inspector ID"""
+        if self.inspector_ID == 1:
+            # return component of type 1
+            arrivalTime = self._Clock
+            componentID = 1
+            component = (arrivalTime, componentID)
+        else: 
+            #randomly decide if it should return component of type 1 or 2
+            pass 
 
     def print_state(self):
         print("waiting_queue: ", self.waiting_queue)
         print("in_service: ", self.in_service)
-        print("blocked: ", self._Blocked)
+        print("blocked: ", self._Busy)
         print("clock: ", self._Clock)
-
-
 
 class Workstation(object):
     #Define each queue
