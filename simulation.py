@@ -300,9 +300,9 @@ class Sim(object):
             product, event = self.workstation_2.get(clock)
         elif(ID == 3): 
             product, event = self.workstation_3.get(clock)
-        print("event", product)
-        print("event", event)
-        return product 
+        
+     
+        return product, event
 
 
 #Create instance of simulation
@@ -333,7 +333,11 @@ while(simulation.total_departures < simulation.total_customers):
             simulation.FEL.put(response_event)
     elif(event[1] == simulation._workstation_departure): 
         simulation.total_departures = simulation.total_departures + 1
-        final_product = simulation.processWorkstationDeparture(simulation._Clock, event[2])
+        final_product, response_event = simulation.processWorkstationDeparture(simulation._Clock, event[2])
+        print("product", final_product)
+        if response_event != None: 
+            simulation.FEL.put(response_event)
+
     elif(event == None): 
         pass; 
     
