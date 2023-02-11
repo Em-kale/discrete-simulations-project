@@ -119,7 +119,7 @@ class Workstation(object):
                 #buffer is full, should never reach here
                 pass
             """ if buffer one has at least one component, put it in service """
-            if len(self.waiting_buffer_one) > 0:
+            if len(self.waiting_buffer_one) > 0 and len(self.in_service) == 0:
                 product = (self.waiting_buffer_one.pop(0))
                 self.in_service.append(product)
                 depart = self.scheduleDeparture(product)
@@ -128,8 +128,9 @@ class Workstation(object):
 
         elif self.workstation_ID == 2 or self.workstation_ID == 3: 
             """ if buffer one isn't full, add component """
+           
             if buffer == 1:
-                print("adding to buffer 1", component)
+               
                 if len(self.waiting_buffer_one) < 2:
                     self.waiting_buffer_one.append(component)
                 else:
@@ -138,6 +139,7 @@ class Workstation(object):
 
             """ if buffer two isn't full, add component """ 
             if buffer == 2:
+                
                 if len(self.waiting_buffer_two) < 2:
                     self.waiting_buffer_two.append(component)
                 else:
@@ -145,7 +147,7 @@ class Workstation(object):
                     pass
 
             """ if both buffers have at least one component, put them in service """
-            if len(self.waiting_buffer_one) > 0 and len(self.waiting_buffer_two) > 0:
+            if len(self.waiting_buffer_one) > 0 and len(self.waiting_buffer_two) > 0 and len(self.in_service) == 0:
                 product = (self.waiting_buffer_one.pop(0), self.waiting_buffer_two.pop(0))
                 self.in_service.append(product)
                 depart = self.scheduleDeparture(product)
@@ -164,9 +166,9 @@ class Workstation(object):
 
         if self.workstation_ID == 1: 
             """ if there are components waiting to be serviced, schedule next departure"""
-            if len(self.waiting_buffer_one) > 0:
+            if len(self.waiting_buffer_one) > 0 and len(self.in_service) == 0:
                 """ move component from queue to service"""
-                product = (self.waiting_buffer_one.pop(0), None)
+                product = (self.waiting_buffer_one.pop(0))
                 self.in_service.append(product)
                 """ schedule departure for head-of-line component"""
                 depart = self.scheduleDeparture(product)
@@ -174,9 +176,9 @@ class Workstation(object):
                 depart = None
 
 
-        elif self.workstation_ID == 2 or self.workstation_ID == 3: 
+        elif self.workstation_ID == 2 or self.workstation_ID == 3 and len(self.in_service) == 0 : 
             """ if there are components waiting to be serviced, schedule next departure"""
-            if len(self.waiting_buffer_one > 0) and len(self.waiting_buffer_two) > 0:
+            if len(self.waiting_buffer_one) > 0 and len(self.waiting_buffer_two) > 0:
                 """ move component from queue to service"""
                 product = (self.waiting_buffer_one.pop(0), self.waiting_buffer_two.pop(0))
                 self.in_service.append(product)
@@ -197,10 +199,12 @@ class Workstation(object):
         """ This function gets the service time for a component from the file""" 
 
         #temporarily just returns constant value
-        return 0.25
+        return 1.2
 
     def getBufferLengths(self):
         """returns the current state of the workstations buffers"""
+        # if self.workstation_ID == 1:
+        #      print(len(self.waiting_buffer_one), len(self.waiting_buffer_two))
         return (len(self.waiting_buffer_one), len(self.waiting_buffer_two))
 
 class Sim(object):
@@ -249,13 +253,13 @@ class Sim(object):
             component, event = self.inspector_1.get(clock)
         elif(ID == 2):
             component, event = self.inspector_2.get(clock) 
-
+       
         self.FEL.put(event)
 
         w1_lengths = self.workstation_1.getBufferLengths() 
-        w2_lengths = self.workstation_1.getBufferLengths() 
-        w3_lengths = self.workstation_1.getBufferLengths() 
-      
+        w2_lengths = self.workstation_2.getBufferLengths() 
+        w3_lengths = self.workstation_3.getBufferLengths() 
+     
         if(component[1] == 'c1'): 
             if w1_lengths[0] >= 2:
                 if w2_lengths[0] < 2 and w2_lengths[0] < w3_lengths[0]: 
@@ -266,8 +270,8 @@ class Sim(object):
                     event = self.workstation_2.put(1, (component), clock)
                 else: 
                     event = self.inspector_1.put((component), clock, True)
-            elif(w1_lengths[0] == 1): 
-                
+            elif w1_lengths[0] == 1: 
+      
                 if w2_lengths[0] == 0: 
                     event = self.workstation_2.put(1, (component), clock)
                 elif w3_lengths[0] == 0: 
@@ -281,12 +285,11 @@ class Sim(object):
                 event = self.inspector_2.put((component), clock, True)
             else: 
                 event = self.workstation_2.put(2, (component), clock)
-
         elif(component[1] == 'c3'): 
             if w3_lengths[1] >= 2:
                 event = self.inspector_2.put((component), clock, True)
             else: 
-                event = self.workstation_3.put(3, (component), clock)
+                event = self.workstation_3.put(2, (component), clock)
         else: 
             #something horrible has happened
             event = None 
@@ -301,7 +304,7 @@ class Sim(object):
         elif(ID == 3): 
             product, event = self.workstation_3.get(clock)
         
-     
+   
         return product, event
 
 
@@ -316,11 +319,8 @@ simulation.FEL.put(event2)
 
 while(simulation.total_departures < simulation.total_customers):
     event = simulation.FEL.get()
+
     simulation._Clock = event[0]
-    print(event)
-    print("event", event[1])
-    print("ID", event[2])
-    print("Component Type", event[3])
 
     if(event[1] == simulation._arrival):
         response_event = simulation.scheduleArrival(simulation._Clock, event[2], event[3])
@@ -328,7 +328,7 @@ while(simulation.total_departures < simulation.total_customers):
             simulation.FEL.put(response_event)
     elif(event[1] == simulation._inspector_departure):
         response_event = simulation.processInspectionDeparture(simulation._Clock, event[2])
-       # print("response_event", response_event)
+   
         if(response_event != None): 
             simulation.FEL.put(response_event)
     elif(event[1] == simulation._workstation_departure): 
@@ -337,7 +337,6 @@ while(simulation.total_departures < simulation.total_customers):
         print("product", final_product)
         if response_event != None: 
             simulation.FEL.put(response_event)
-
     elif(event == None): 
         pass; 
     
