@@ -1,6 +1,6 @@
-from queue import Queue, Full, PriorityQueue, Empty
+from queue import Queue, PriorityQueue, Full, Empty
 import random
-import math
+from milestone2 import RandomNumberGenerator
 
 #GREEN: event added to the FEL
 #BLUE: is a buffer insertion
@@ -14,9 +14,16 @@ class bcolors:
     FAIL = '\033[91m'
     ENDC = '\033[0m'
 
+
+# define FEL and global clock
 FEL = PriorityQueue()
-product_list = {'P1': 0, 'P2': 0, 'P3': 0}
 _Clock = 0.0
+
+# define random number generator
+rng = RandomNumberGenerator(seed=12345)
+
+# define product list to track how many products were created
+product_list = {'P1': 0, 'P2': 0, 'P3': 0}
 
 class Product:
     def __init__(self, components):
@@ -34,7 +41,7 @@ class Product:
         self._ready = False
     
     def get_assembly_time(self):
-        return random.expovariate(1)    
+        return rng.expovariate(1) 
 
     # signals the component is finished inspecting and can be passed to workstation
     def mark_as_ready(self):
@@ -58,7 +65,7 @@ class Component:
 
     # time to inspect this component, reads data from historical files
     def get_inspection_time(self) -> float:
-        return random.expovariate(1)
+        return rng.expovariate(1)
 
     # signals the component is finished inspecting and can be passed to workstation
     def mark_as_ready(self):
@@ -86,7 +93,6 @@ class Workstation:
         self.pass_time(delay)
         # self.try_consume_buffers()
 
-
     def add_to_buffer(self, current_comp):
         self.buffers[current_comp.name].put_nowait(current_comp)
         print(f"{bcolors.OKBLUE}[{_Clock}s] {self}:{bcolors.ENDC} Inserting {current_comp} into buffer")
@@ -113,7 +119,6 @@ class Workstation:
         if self.current_product != None:
             print(f'{bcolors.FAIL}[{_Clock}s] {self}:{bcolors.ENDC} still working on {self.current_product}')
             return # still working or still blocked
-
         if all_non_empty:
             self.current_product = Product([i.get() for i in self.buffers.values()])
             self.assembly_time_left = self.current_product.get_assembly_time()
@@ -282,10 +287,19 @@ if __name__ == '__main__':
 
         for w in workstations:
             w.update()
+        
 
 
     #print final states
     print('final buffer states: ')
     print_buffers()
     print('Products: ', product_list)
+
+
+
+
+
+
+
+
 
