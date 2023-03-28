@@ -1,231 +1,291 @@
-import queue
+from queue import Queue, Full, PriorityQueue, Empty
+import random
+import math
 
-ARRIVAL_EVENT = 1
-DEPARTURE_EVENT = 2
+#GREEN: event added to the FEL
+#BLUE: is a buffer insertion
+#YELLOW: component/product ready to be consumed
+#RED means the inspector/workstation is working / blocked
+class bcolors:
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
 
-class Inspector(object):
-    def __init__(self, inspector_ID): 
-        self._arrival = ARRIVAL_EVENT      
-        self._departure = DEPARTURE_EVENT     
+FEL = PriorityQueue()
+product_list = {'P1': 0, 'P2': 0, 'P3': 0}
+_Clock = 0.0
 
-        self.in_service = []
-        self.inspector_ID = inspector_ID 
-
-        self._Clock = 0.0 
-        
-
-    def put(self, component, clock, is_blocked): 
-        """ add a component into queue"""
-        """ component = (arrivalTime, componentID) """
-
-        """ update clock"""
-        self._Clock = clock
-
-        """ start service """
-        self.in_service.append(component)
-        depart = self.scheduleDeparture(component, is_blocked)
-
-        """update statistic here eventually """
-            
-        return depart
-
-    def get(self, clock):
-        """ get component from the service queue"""
-        component = self.in_service.pop(0)
-
-        """ update clock"""
-        self._Clock = clock
-
-        """ get next component to be serviced"""
-        next_component = self.getNextComponent()
-        self.in_service.append(next_component)
-        """ schedule departure for next component"""
-        depart = self.scheduleDeparture(next_component)
-
-        return component, depart 
-
-
-    def scheduleDeparture(self, component, is_blocked):
-        """ This functions schedules a departure event for a given component"""
-        if is_blocked:
-            deltaTime = 1.0
-            depart = (self._Clock + deltaTime, self._departure, self.inspector_ID, component)
+class Product:
+    def __init__(self, components):
+        #determine product type based on components provided
+        if len(components) == 1 and components[0].name == 'C1':
+            self.name = 'P1'
+        elif len(components) == 2 and components[0].name == 'C1':
+            if components[1].name == 'C2':
+                self.name = 'P2'
+            elif components[1].name == 'C3':
+                self.name = 'P3'
         else:
-            ServiceTime = self.getServiceTime()
-            depart = (self._Clock + ServiceTime, self._departure, self.inspector_ID, component)
+            self.name = "error"  # or raise an error if the input is invalid
+        
+        self._ready = False
+    
+    def get_assembly_time(self):
+        return random.expovariate(1)    
 
-        return depart  
+    # signals the component is finished inspecting and can be passed to workstation
+    def mark_as_ready(self):
+        self._ready = True
 
-    def getServiceTime(self):
-        """ This function gets the service time for a component from the file""" 
+    # returns true if the component passed inspection
+    def is_ready(self) -> bool:
+        return self._ready
 
-        #temporarily just returns constant value
-        return 0.25
+    def __repr__(self):
+        return self.name
 
-    def getNextComponent(self): 
-        """ This function generates the next component when the previous one departs - depends on the inspector ID"""
-        if self.inspector_ID == 1:
-            # return component of type 1
-            arrivalTime = self._Clock
-            componentID = 1
-            component = (arrivalTime, componentID)
-        else: 
-            #randomly decide if it should return component of type 1 or 2
-            pass 
+class Component:
+    def __init__(self, name):
+        self.name = name
+        self._ready = False
+    
+    # returns true if the component passed inspection
+    def is_ready(self) -> bool:
+        return self._ready
 
-class Workstation(object):
-    #Define each queue
+    # time to inspect this component, reads data from historical files
+    def get_inspection_time(self) -> float:
+        return random.expovariate(1)
 
-    def __init__(self, workstation_ID):
+    # signals the component is finished inspecting and can be passed to workstation
+    def mark_as_ready(self):
+        self._ready = True
+        
+    def __repr__(self) -> str:
+        return self.name
 
-        self._arrival = ARRIVAL_EVENT      
-        self._departure = DEPARTURE_EVENT  
+class Workstation:
+    def __init__(self, name, *buffer_components):
+        self.name = name
 
-        self.waiting_buffer_one = []
-        self.waiting_buffer_two = []
+        self.current_product = None
+        self.assembly_time_left = 0.0
+        self._time_of_last_update = 0.0
 
-        self.in_service = []
-        self.workstation_ID = workstation_ID
+        self._BUFFER_SIZE = 2
+        self.buffers = {}
+        for c in buffer_components:
+            self.buffers[c.name] = Queue(self._BUFFER_SIZE)
 
-        self._Clock = 0.0 
+    def update(self):
+        delay = _Clock - self._time_of_last_update
+        self._time_of_last_update = _Clock
+        self.pass_time(delay)
+        # self.try_consume_buffers()
 
-    def put(self, buffer, component, clock):
-        """ add a component into its respective buffer"""
-        """ buffer: what buffer to put into
-            component: the component that is being put
-            clock: clock time of event
+
+    def add_to_buffer(self, current_comp):
+        self.buffers[current_comp.name].put_nowait(current_comp)
+        print(f"{bcolors.OKBLUE}[{_Clock}s] {self}:{bcolors.ENDC} Inserting {current_comp} into buffer")
+
+        self.add_event_to_FEL(0.0, 'check if product can be assembled')
+
+        return True
+
+    # check if all buffers have at least one component in them, if so consume and add to FEL
+    def try_consume_buffers(self):
+        all_non_empty = True
+        for q in self.buffers.values():
+            if q.qsize() == 0:
+                all_non_empty = False
+                break
+
+        if self.current_product != None and self.current_product.is_ready():
+            #try to move item to buffer. If successful, change current item to null
+            #TODO TRACK  THIS SOMEWHERE
+            product_list[self.current_product.name] += 1 #temporary just throwing them in a dict
+
+            self.current_product = None
+
+        if self.current_product != None:
+            print(f'{bcolors.FAIL}[{_Clock}s] {self}:{bcolors.ENDC} still working on {self.current_product}')
+            return # still working or still blocked
+
+        if all_non_empty:
+            self.current_product = Product([i.get() for i in self.buffers.values()])
+            self.assembly_time_left = self.current_product.get_assembly_time()
+            self.add_event_to_FEL(self.assembly_time_left, 'finished assembling ' + str(self.current_product))
+
+
+    def pass_time(self, delay):
+        
+        if self.current_product != None and not self.current_product.is_ready():
+            self.assembly_time_left -= delay
+            if abs(self.assembly_time_left) < 1e-6:
+                self.current_product.mark_as_ready()
+                print(f"{bcolors.WARNING}[{_Clock}] {self}:{bcolors.ENDC} marked its product {self.current_product} as ready\033[0m")
+
+
+    def add_event_to_FEL(self, delay, event_name):
+        print(f"{bcolors.OKGREEN}[{_Clock}s] {self}:{bcolors.ENDC} adding '{event_name}' at time {_Clock + delay} to the FEL")
+        FEL.put_nowait(_Clock + delay)
+
+
+    def __repr__(self):
+        return self.name
+
+
+class Inspector:
+    def __init__(self, name, workstations, *incoming_components):
+        self.name = name
+        self.incoming_components = [i for i in incoming_components]
+
+        self.current_comp = None
+        self.inspection_time_left = 0.0
+        self._time_of_last_update = 0.0
+
+        #reference to workstations
+        self._workstations = workstations
+
+    def update(self):
+        delay = _Clock - self._time_of_last_update
+        self._time_of_last_update = _Clock
+        self.pass_time(delay)
+        # self.maybe_act()
+
+    #potentially useless
+    def get_state(self):
+        if this.current_comp == None:
+            return 'initial'
+        elif this.current_comp.is_ready():
+            return "blocked"
+        else:
+            return "working"
+    
+    def maybe_act(self):
+        if self.current_comp != None and self.current_comp.is_ready():
+            #try to move item to buffer. If successful, change current item to null
+            got_rid = self.try_to_move_component_to_buffer(self.current_comp)
+            if got_rid:
+                self.current_comp = None
+                #self.add_event_to_FEL(0.0, "buffer got new component")
+
+        if self.current_comp != None:
+            print(f'{bcolors.FAIL}[{_Clock}s] {self}:{bcolors.ENDC} still working or still blocked on {self.current_comp}')
+            return # still working or still blocked
+
+        self.current_comp = self.get_new_component()
+        self.inspection_time_left = self.current_comp.get_inspection_time()
+        self.add_event_to_FEL(self.inspection_time_left, 'finished inspecting ' + str(self.current_comp))
+
+    def get_new_component(self) -> Component:
+        return Component(random.choice(self.incoming_components).name)
+
+    def pass_time(self, delay):
+        if self.current_comp != None and not self.current_comp.is_ready():
+            
+            self.inspection_time_left -= delay
+            if abs(self.inspection_time_left) < 1e-6:
+                self.current_comp.mark_as_ready()
+                print(f"{bcolors.WARNING}[{_Clock}] {self}:{bcolors.ENDC} marked its component {self.current_comp} as ready")
+
+    def add_event_to_FEL(self, delay, event_name):
+        print(f"{bcolors.OKGREEN}[{_Clock}s] {self}:{bcolors.ENDC} adding '{event_name}' at time {_Clock + delay} to the FEL")
+        FEL.put_nowait(_Clock + delay)
+
+    def try_to_move_component_to_buffer(self, current_comp) -> bool:
+        """
+        Tries to move a component to the corresponding workstation's buffer.
+        Returns True if the move was successful, False otherwise.
         """
 
-        """ update clock"""
-        self._Clock = clock
+        min_queue_len = 2  # all buffers have max length 2
+        min_queue_workstation = None
+
+        # Find the workstation with the shortest queue for the given component
+        for w in self._workstations:
+            if current_comp.name in w.buffers:
+                queue_len = w.buffers[current_comp.name].qsize()
+                if queue_len < min_queue_len:
+                    min_queue_len = queue_len
+                    min_queue_workstation = w
+        # Try to add the component to the buffer with the shortest queue
+        if min_queue_workstation is not None:
+            min_queue_workstation.add_to_buffer(current_comp)
+            return True
+
+        return False       
+
+    def __repr__(self):
+        return self.name
+
+# Below this is just for running the simulation and printing stuff
+
+def print_buffers():
+    print("w1 c1 buffer = ", end ="")
+    while not w1.buffers['C1'].empty():
+        item = w1.buffers['C1'].get()
+        print(item, end=" ")
         
-        """if workstation one, only has one buffer"""
-        if self.workstation_ID == 1: 
-            if len(self.waiting_buffer_one) < 2: 
-                self.waiting_buffer_one.append(component)
-            else:
-                #buffer is full, should never reach here
-                pass
-            """ if buffer one has at least one component, put it in service """
-            if len(self.waiting_buffer_one > 0):
-                product = (self.waiting_buffer_one.pop(0), None)
-                self.in_service.append(product)
-                depart = self.scheduleDeparture(product)
-            else:
-                depart = None
+    print("\nw2 c1 buffer = ", end ="")
+    while not w2.buffers['C1'].empty():
+        item = w2.buffers['C1'].get()
+        print(item, end=" ")
 
-        elif self.workstation_ID == 2 or self.workstation_ID == 3: 
-            """ if buffer one isn't full, add component """
-            if buffer == 1:
-                if len(self.waiting_buffer_one) < 2:
-                    self.waiting_buffer_one.append(component)
-                else:
-                    #buffer is full, should never reach here
-                    pass
+    print("\nw2 c2 buffer = ", end ="")
+    while not w2.buffers['C2'].empty():
+        item = w2.buffers['C2'].get()
+        print(item, end=" ")
 
-            """ if buffer two isn't full, add component """ 
-            if buffer == 2:
-                if len(self.waiting_buffer_two) < 2:
-                    self.waiting_buffer_two.append(component)
-                else:
-                    #buffer is full, should never reach here
-                    pass
+    print("\nw3 c1 buffer = ", end ="")
+    while not w3.buffers['C1'].empty():
+        item = w3.buffers['C1'].get()
+        print(item, end=" ")
 
-            """ if both buffers have at least one component, put them in service """
-            if len(self.waiting_buffer_one > 0) and len(self.waiting_buffer_two) > 0:
-                product = (self.waiting_buffer_one.pop(0), self.waiting_buffer_two.pop(0))
-                self.in_service.append(product)
-                depart = self.scheduleDeparture(product)
-            else:
-                depart = None
+    print("\nw3 c3 buffer = ", end ="")
+    while not w3.buffers['C3'].empty():
+        item = w3.buffers['C3'].get()
+        print(item, end=" ")
 
-        return depart
+    print()
 
-    def get(self, clock):
-        """ get product from the server of the queue"""
-        product = self.in_service.pop(0)
+if __name__ == '__main__':
 
-        """ update clock"""
-        self._Clock = clock
+    #init workstations and inspectors
+    w1 = Workstation('W1', Component('C1'))
+    w2 = Workstation('W2', Component('C1'), Component('C2'))
+    w3 = Workstation('W3', Component('C1'), Component('C3'))
+    workstations = [w1, w2, w3]
 
-        if self.workstation_ID == 1: 
-            """ if there are components waiting to be serviced, schedule next departure"""
-            if len(self.waiting_buffer_one > 0):
-                """ move component from queue to service"""
-                product = (self.waiting_buffer_one.pop(0), None)
-                self.in_service.append(product)
-                """ schedule departure for head-of-line component"""
-                depart = self.scheduleDeparture(product)
-            else:
-                depart = None
+    i1 = Inspector('I1', workstations, Component('C1'))
+    i2 = Inspector('I2', workstations, Component('C2'), Component('C3'))
+    inspectors = [i1, i2]
+
+    #run the simulation loop 100 times
+    for i in range(100):
+        i1.maybe_act()
+        i2.maybe_act()
+        w1.try_consume_buffers()
+        w2.try_consume_buffers()
+        w3.try_consume_buffers()
+
+        try:
+            _Clock = FEL.get_nowait()
+        except Empty:
+            pass
+
+        for i in inspectors:
+            i.update()
+
+        for w in workstations:
+            w.update()
 
 
-        elif self.workstation_ID == 2 or self.workstation_ID == 3: 
-            """ if there are components waiting to be serviced, schedule next departure"""
-            if len(self.waiting_buffer_one > 0) and len(self.waiting_buffer_two) > 0:
-                """ move component from queue to service"""
-                product = (self.waiting_buffer_one.pop(0), self.waiting_buffer_two.pop(0))
-                self.in_service.append(product)
-                """ schedule departure for head-of-line component"""
-                depart = self.scheduleDeparture(product)
-            else:
-                depart = None
+    #print final states
+    print('final buffer states: ')
+    print_buffers()
+    print('Products: ', product_list)
 
-        #return product, departure event
-        return product, depart    
-
-    def scheduleDeparture(self, product): 
-        ServiceTime = self.getServiceTime()
-        depart = (self._Clock + ServiceTime, self._departure, self.workstation_ID, product)
-        return depart  
-
-    def getServiceTime(self):
-        """ This function gets the service time for a component from the file""" 
-
-        #temporarily just returns constant value
-        return 0.25
-
-    def getBufferLengths(self):
-        """returns the current state of the workstations buffers"""
-        return (len(self.waiting_buffer_one), len(self.waiting_buffer_two))
-
-class Sim(object):
-    def __init__(self):
-        #Number of queues to create
-        self.number_of_queues = 5  
-        
-        #starting queue ID 
-        self.queue_id = 0
-
-        #list of queues for simulation 
-        self.queue_list = []
-
-        #Total number of customers the system will run for 
-        self.total_customers = 10
-
-        #Total number of departures from system 
-        self.total_departures = 0 
-
-        #Create future event list
-        self.FEL = queue.PriorityQueue()
-        
-    def scheduleArrival(self):
-        #TODO: schedule new arrival to the system 
-        pass 
-
-    def processDeparture(self):
-        #TODO: Process Departure from system
-        pass
-
-#Create instance of simulation
-simulation = Sim() 
-
-#Schedule First Arrival
-simulation.scheduleArrival() 
-
-#Loop 
-while(simulation.total_departures < simulation.total_customers):
-    #Get next item from FEL 
-    #Do stuff
-    #Repeat
-    pass; 
