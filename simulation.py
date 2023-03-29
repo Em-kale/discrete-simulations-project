@@ -111,7 +111,7 @@ class Workstation:
 
         if self.current_product != None and self.current_product.is_ready():
             #try to move item to buffer. If successful, change current item to null
-            #TODO TRACK  THIS SOMEWHERE
+
             product_list[self.current_product.name] += 1 #temporary just throwing them in a dict
 
             self.current_product = None
@@ -219,8 +219,8 @@ class Inspector:
                     min_queue_workstation = w
         # Try to add the component to the buffer with the shortest queue
         if min_queue_workstation is not None:
-            min_queue_workstation.add_to_buffer(current_comp)
-            return True
+
+            return min_queue_workstation.add_to_buffer(current_comp)
 
         return False       
 
@@ -288,8 +288,6 @@ if __name__ == '__main__':
         for w in workstations:
             w.update()
         
-
-
     #print final states
     print('final buffer states: ')
     print_buffers()
