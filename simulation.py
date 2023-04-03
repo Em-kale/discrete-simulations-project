@@ -22,6 +22,9 @@ _Clock = 0.0
 # define random number generator
 rng = RandomNumberGenerator(seed=12345)
 
+#statistics 
+components_in_system = [] 
+
 # define product list to track how many products were created
 product_list = {'P1': 0, 'P2': 0, 'P3': 0}
 
@@ -56,7 +59,11 @@ class Component:
 
         self.name = name
         self._ready = False
-    
+
+        # statistics
+        self._time_entered_system = _Clock
+        self._time_exited_system = None
+
     # returns true if the component passed inspection
     def is_ready(self) -> bool:
         return self._ready
@@ -118,7 +125,14 @@ class Workstation:
             #try to move item to buffer. If successful, change current item to null
 
             product_list[self.current_product.name] += 1 #temporary just throwing them in a dict
+           
 
+            #statistics
+            if self.current_product.name == 'P1':
+                components_in_system.append(components_in_system[-1:][0]- 1)
+            elif self.current_product.name == 'P2' or self.current_product.name == 'P3':
+                components_in_system.append(components_in_system[-1:][0] - 2)
+            
             self.current_product = None
 
         if self.current_product != None:
@@ -207,6 +221,12 @@ class Inspector:
 
         self.current_comp = self.get_new_component()
         self.inspection_time_left = self.current_comp.get_inspection_time()
+        
+        if not components_in_system:
+            components_in_system.append(1)
+        else:
+            components_in_system.append(components_in_system[-1:][0] + 1)
+
         self.add_event_to_FEL(self.inspection_time_left, 'finished inspecting ' + str(self.current_comp))
 
     def get_new_component(self) -> Component:
@@ -316,8 +336,12 @@ if __name__ == '__main__':
     print_buffers()
     print('Products: ', product_list)
 
+    print('Components in system', components_in_system)
+
+
     print('Inspector 1 time spent in states: ', i1.time_spent_in_states)
     print('Inspector 2 time spent in states: ', i2.time_spent_in_states)
+
 
 
 
