@@ -36,13 +36,10 @@ class Product:
             elif components[1].name == 'C3':
                 self.name = 'P3'
         else:
-            self.name = "error"  # or raise an error if the input is invalid
+            raise Exception('invalid product')  # or raise an error if the input is invalid
         
         self._ready = False
     
-    def get_assembly_time(self):
-        return rng.expovariate(1) 
-
     # signals the component is finished inspecting and can be passed to workstation
     def mark_as_ready(self):
         self._ready = True
@@ -56,6 +53,7 @@ class Product:
 
 class Component:
     def __init__(self, name):
+
         self.name = name
         self._ready = False
     
@@ -65,7 +63,14 @@ class Component:
 
     # time to inspect this component, reads data from historical files
     def get_inspection_time(self) -> float:
-        return rng.expovariate(1)
+        if self.name == 'C1':
+            return rng.expovariate(1/10.357909999999993)
+        elif self.name == 'C2':
+            return rng.expovariate(1/15.53690333333332)
+        elif self.name == 'C3':
+            return rng.expovariate(1/20.632756666666666)
+        else:
+            raise Exception("invalid component")
 
     # signals the component is finished inspecting and can be passed to workstation
     def mark_as_ready(self):
@@ -121,8 +126,19 @@ class Workstation:
             return # still working or still blocked
         if all_non_empty:
             self.current_product = Product([i.get() for i in self.buffers.values()])
-            self.assembly_time_left = self.current_product.get_assembly_time()
+            self.assembly_time_left = self.get_assembly_time()
             self.add_event_to_FEL(self.assembly_time_left, 'finished assembling ' + str(self.current_product))
+
+
+    def get_assembly_time(self):
+        if self.name == 'W1':
+            return rng.expovariate(1/4.604416666666665)
+        elif self.name == 'W2':
+            return rng.expovariate(1/11.092606666666665)
+        elif self.name == 'W3':
+            return rng.expovariate(1/8.795580000000005)
+        else:
+            raise Exception("invalid component")
 
 
     def pass_time(self, delay):
@@ -152,20 +168,27 @@ class Inspector:
         self.inspection_time_left = 0.0
         self._time_of_last_update = 0.0
 
+        self.time_spent_in_states = {}
+
         #reference to workstations
         self._workstations = workstations
 
     def update(self):
         delay = _Clock - self._time_of_last_update
+
+        state_since_last_update = self.get_state()
+        time_already_spent_in_this_state = self.time_spent_in_states.get(state_since_last_update, 0.0)
+        self.time_spent_in_states.update({state_since_last_update: time_already_spent_in_this_state + delay})
+
         self._time_of_last_update = _Clock
         self.pass_time(delay)
         # self.maybe_act()
 
     #potentially useless
     def get_state(self):
-        if this.current_comp == None:
+        if self.current_comp == None:
             return 'initial'
-        elif this.current_comp.is_ready():
+        elif self.current_comp.is_ready():
             return "blocked"
         else:
             return "working"
@@ -293,6 +316,8 @@ if __name__ == '__main__':
     print_buffers()
     print('Products: ', product_list)
 
+    print('Inspector 1 time spent in states: ', i1.time_spent_in_states)
+    print('Inspector 2 time spent in states: ', i2.time_spent_in_states)
 
 
 
