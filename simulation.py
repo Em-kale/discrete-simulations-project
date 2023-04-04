@@ -1,7 +1,7 @@
 from queue import Queue, PriorityQueue, Full, Empty
 import random
 from milestone2 import RandomNumberGenerator
-
+import statistics 
 #GREEN: event added to the FEL
 #BLUE: is a buffer insertion
 #YELLOW: component/product ready to be consumed
@@ -24,6 +24,9 @@ rng = RandomNumberGenerator(seed=12345)
 
 #statistics 
 components_in_system = [] 
+component_times_in_system = [] 
+individual_run_buffer_occupancies = {}
+
 
 # define product list to track how many products were created
 product_list = {'P1': 0, 'P2': 0, 'P3': 0}
@@ -31,6 +34,8 @@ product_list = {'P1': 0, 'P2': 0, 'P3': 0}
 class Product:
     def __init__(self, components):
         #determine product type based on components provided
+        self.components = components
+
         if len(components) == 1 and components[0].name == 'C1':
             self.name = 'P1'
         elif len(components) == 2 and components[0].name == 'C1':
@@ -62,7 +67,7 @@ class Component:
 
         # statistics
         self._time_entered_system = _Clock
-        self._time_exited_system = None
+        self._time_entered_buffer = None
 
     # returns true if the component passed inspection
     def is_ready(self) -> bool:
@@ -78,11 +83,20 @@ class Component:
             return rng.expovariate(1/20.632756666666666)
         else:
             raise Exception("invalid component")
-
+    
+    def set_buffer_time(self):
+        self._time_entered_buffer = _Clock
+    
     # signals the component is finished inspecting and can be passed to workstation
     def mark_as_ready(self):
         self._ready = True
-        
+
+    def get_arrival_time(self):
+        return self._time_entered_system
+    
+    def get_buffer_arrival_time(self):
+        return self._time_entered_buffer
+    
     def __repr__(self) -> str:
         return self.name
 
@@ -93,20 +107,44 @@ class Workstation:
         self.current_product = None
         self.assembly_time_left = 0.0
         self._time_of_last_update = 0.0
-
+        self.components = [] 
         self._BUFFER_SIZE = 2
         self.buffers = {}
+        self.buffer_occupancy = {}
+        self.workstation_occupancy = []
+        self.components_arrived = 0
+        self.component_times_in_workstation =  [] 
         for c in buffer_components:
             self.buffers[c.name] = Queue(self._BUFFER_SIZE)
+            self.buffer_occupancy[c.name] = [] 
+            key = self.name + ":" + c.name
+            individual_run_buffer_occupancies[key] = [] 
 
     def update(self):
         delay = _Clock - self._time_of_last_update
         self._time_of_last_update = _Clock
         self.pass_time(delay)
         # self.try_consume_buffers()
-
+    
     def add_to_buffer(self, current_comp):
         self.buffers[current_comp.name].put_nowait(current_comp)
+        
+        current_comp.set_buffer_time() 
+        self.components.append(current_comp)
+
+        #statistics
+        if not self.buffer_occupancy[current_comp.name]:
+            self.buffer_occupancy[current_comp.name].append(1)
+            self.components_arrived += 1 
+        else: 
+            self.buffer_occupancy[current_comp.name].append(self.buffer_occupancy[current_comp.name][-1:][0] + 1)
+            self.components_arrived += 1 
+
+        if not self.workstation_occupancy: 
+            self.workstation_occupancy.append(1)
+        else: 
+            self.workstation_occupancy.append(self.workstation_occupancy[-1:][0] + 1)
+
         print(f"{bcolors.OKBLUE}[{_Clock}s] {self}:{bcolors.ENDC} Inserting {current_comp} into buffer")
 
         self.add_event_to_FEL(0.0, 'check if product can be assembled')
@@ -117,6 +155,7 @@ class Workstation:
     def try_consume_buffers(self):
         all_non_empty = True
         for q in self.buffers.values():
+            
             if q.qsize() == 0:
                 all_non_empty = False
                 break
@@ -127,22 +166,50 @@ class Workstation:
             product_list[self.current_product.name] += 1 #temporary just throwing them in a dict
            
 
-            #statistics
             if self.current_product.name == 'P1':
                 components_in_system.append(components_in_system[-1:][0]- 1)
+                component_times_in_system.append(_Clock - self.current_product.components[0].get_arrival_time())
+                self.workstation_occupancy.append(self.workstation_occupancy[-1:][0] - 1)
+                #statistics
+                self.component_times_in_workstation.append(_Clock - self.components[0].get_buffer_arrival_time())
+                self.components.pop(0) 
             elif self.current_product.name == 'P2' or self.current_product.name == 'P3':
                 components_in_system.append(components_in_system[-1:][0] - 2)
-            
+                component_times_in_system.append(_Clock - self.current_product.components[0].get_arrival_time())
+                component_times_in_system.append(_Clock - self.current_product.components[1].get_arrival_time())
+                self.workstation_occupancy.append(self.workstation_occupancy[-1:][0]- 2)
+                self.component_times_in_workstation.append(_Clock - self.components[0].get_buffer_arrival_time())
+                self.component_times_in_workstation.append(_Clock - self.components[1].get_buffer_arrival_time())
+                print(self.components)
+                del self.components[0] 
+                del self.components[0] 
+  
             self.current_product = None
 
         if self.current_product != None:
             print(f'{bcolors.FAIL}[{_Clock}s] {self}:{bcolors.ENDC} still working on {self.current_product}')
             return # still working or still blocked
         if all_non_empty:
+            for i in self.buffers.keys():
+                self.buffer_occupancy[i].append(self.buffer_occupancy[i][-1:][0] - 1)
             self.current_product = Product([i.get() for i in self.buffers.values()])
             self.assembly_time_left = self.get_assembly_time()
             self.add_event_to_FEL(self.assembly_time_left, 'finished assembling ' + str(self.current_product))
 
+    def update_statistics(self): 
+        for i in self.buffers.keys():
+            key = self.name + ":" + i
+            individual_run_buffer_occupancies[key].append(sum(self.buffer_occupancy[i])/len(self.buffer_occupancy[i]))
+        
+
+    def generate_report(self):
+        for i in self.buffers.keys():
+            print(f"Length of occupancy list for {self.name}, buffer {i}: {len(self.buffer_occupancy[i])}")
+            print(f"standard deviation of occupancy for {self.name}, buffer {i}: {statistics.stdev(self.buffer_occupancy[i])}")
+            print(f"Average occupancy for {self.name}, buffer {i}: {sum(self.buffer_occupancy[i])/len(self.buffer_occupancy[i])}")
+        print(f"Average time in workstation for {self.name} : {sum(self.component_times_in_workstation) / len(self.component_times_in_workstation)}")
+        print(f"Arrival rate for {self.name}: {self.components_arrived / _Clock}")
+        print(f"Average workstation occupancy {self.name}: {sum(self.workstation_occupancy)/ len(self.workstation_occupancy)}")
 
     def get_assembly_time(self):
         if self.name == 'W1':
@@ -156,7 +223,6 @@ class Workstation:
 
 
     def pass_time(self, delay):
-        
         if self.current_product != None and not self.current_product.is_ready():
             self.assembly_time_left -= delay
             if abs(self.assembly_time_left) < 1e-6:
@@ -186,6 +252,9 @@ class Inspector:
 
         #reference to workstations
         self._workstations = workstations
+
+    def generate_report(self):
+        print(f"Percentage blocked {self.name}: {self.time_spent_in_states['blocked']/(self.time_spent_in_states['working'] + self.time_spent_in_states['blocked'])}")
 
     def update(self):
         delay = _Clock - self._time_of_last_update
@@ -271,7 +340,6 @@ class Inspector:
         return self.name
 
 # Below this is just for running the simulation and printing stuff
-
 def print_buffers():
     print("w1 c1 buffer = ", end ="")
     while not w1.buffers['C1'].empty():
@@ -300,6 +368,42 @@ def print_buffers():
 
     print()
 
+def update_statistics():
+    w1.update_statistics() 
+    w2.update_statistics() 
+    w3.update_statistics() 
+
+def generate_system_report():
+    print("\n_________ OVERALL SYSTEM STATISTICS ____________ \n")
+    print('Occupancy mean for W1:C1: ', sum(individual_run_buffer_occupancies['W1:C1'])/len(individual_run_buffer_occupancies['W1:C1']))
+    print('Occupancy mean for W2:C1: ', sum(individual_run_buffer_occupancies['W2:C1'])/len(individual_run_buffer_occupancies['W2:C1']))
+    print('Occupancy mean for W2:C2: ', sum(individual_run_buffer_occupancies['W2:C2'])/len(individual_run_buffer_occupancies['W2:C2']))
+    print('Occupancy mean for W3:C1: ', sum(individual_run_buffer_occupancies['W3:C1'])/len(individual_run_buffer_occupancies['W3:C1']))
+    print('Occupancy mean for W3:C3: ', sum(individual_run_buffer_occupancies['W3:C3'])/len(individual_run_buffer_occupancies['W3:C3']))
+    print('Stand dev of means for W1:C1:', statistics.stdev((individual_run_buffer_occupancies['W1:C1'])))
+    print('Stand dev of means for W2:C1:', statistics.stdev((individual_run_buffer_occupancies['W2:C1'])))
+    print('Stand dev of means for W2:C2:', statistics.stdev((individual_run_buffer_occupancies['W2:C2'])))
+    print('Stand dev of means for W3:C1:', statistics.stdev((individual_run_buffer_occupancies['W3:C1'])))
+    print('Stand dev of means for W3:C3:', statistics.stdev((individual_run_buffer_occupancies['W3:C3'])))
+    
+
+def generate_run_report(): 
+    print("\n_________ SYSTEM STATISTICS ____________ \n")
+    print('Products: ', product_list)
+    print('Average components in system', sum(components_in_system)/len(components_in_system))
+    print('Average time component spends in system', sum(component_times_in_system)/len(component_times_in_system))
+    print('System Throughput', (product_list['P1'] + product_list['P2'] + product_list['P3']) / _Clock)
+   
+    print("\n_________ INSPECTOR 2 STATISTICS ____________ \n")
+    i2.generate_report()
+    
+    print("\n_________ WORKSTATION 1 STATISTICS ____________ \n")
+    w1.generate_report()
+    print("\n_________ WORKSTATION 2 STATISTICS ____________ \n")
+    w2.generate_report()
+    print("\n_________ WORKSTATION 3 STATISTICS ____________ \n")
+    w3.generate_report()
+
 if __name__ == '__main__':
 
     #init workstations and inspectors
@@ -313,36 +417,34 @@ if __name__ == '__main__':
     inspectors = [i1, i2]
 
     #run the simulation loop 100 times
-    for i in range(100):
-        i1.maybe_act()
-        i2.maybe_act()
-        w1.try_consume_buffers()
-        w2.try_consume_buffers()
-        w3.try_consume_buffers()
+    for i in range(5):
+        for i in range(1000):
+            i1.maybe_act()
+            i2.maybe_act()
+            w1.try_consume_buffers()
+            w2.try_consume_buffers()
+            w3.try_consume_buffers()
 
-        try:
-            _Clock = FEL.get_nowait()
-        except Empty:
-            pass
+            try:
+                _Clock = FEL.get_nowait()
+            except Empty:
+                pass
 
-        for i in inspectors:
-            i.update()
+            for i in inspectors:
+                i.update()
 
-        for w in workstations:
-            w.update()
+            for w in workstations:
+                w.update()
+            
+        update_statistics()
+
         
     #print final states
     print('final buffer states: ')
     print_buffers()
-    print('Products: ', product_list)
-
-    print('Components in system', components_in_system)
-
-
-    print('Inspector 1 time spent in states: ', i1.time_spent_in_states)
-    print('Inspector 2 time spent in states: ', i2.time_spent_in_states)
-
-
+    generate_run_report()
+    print(individual_run_buffer_occupancies)
+    generate_system_report()
 
 
 
