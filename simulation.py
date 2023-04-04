@@ -1,6 +1,7 @@
 from queue import Queue, PriorityQueue, Full, Empty
 import random
 from milestone2 import RandomNumberGenerator
+from statistics import stdev
 
 #GREEN: event added to the FEL
 #BLUE: is a buffer insertion
@@ -24,6 +25,8 @@ rng = RandomNumberGenerator(seed=12345)
 
 # define product list to track how many products were created
 product_list = {'P1': 0, 'P2': 0, 'P3': 0}
+
+
 
 class Product:
     def __init__(self, components):
@@ -92,8 +95,17 @@ class Workstation:
         for c in buffer_components:
             self.buffers[c.name] = Queue(self._BUFFER_SIZE)
 
+        #metrics
+        self.total_components = {}
+        for c in buffer_components:
+            self.total_components[c.name] = 0
+
     def update(self):
         delay = _Clock - self._time_of_last_update
+
+        for key in self.buffers.keys():
+            self.total_components[key] += self.buffers.get(key).qsize() * delay
+
         self._time_of_last_update = _Clock
         self.pass_time(delay)
         # self.try_consume_buffers()
@@ -184,7 +196,6 @@ class Inspector:
         self.pass_time(delay)
         # self.maybe_act()
 
-    #potentially useless
     def get_state(self):
         if self.current_comp == None:
             return 'initial'
@@ -282,45 +293,81 @@ def print_buffers():
 
 if __name__ == '__main__':
 
-    #init workstations and inspectors
-    w1 = Workstation('W1', Component('C1'))
-    w2 = Workstation('W2', Component('C1'), Component('C2'))
-    w3 = Workstation('W3', Component('C1'), Component('C3'))
-    workstations = [w1, w2, w3]
-
-    i1 = Inspector('I1', workstations, Component('C1'))
-    i2 = Inspector('I2', workstations, Component('C2'), Component('C3'))
-    inspectors = [i1, i2]
-
-    #run the simulation loop 100 times
-    for i in range(100):
-        i1.maybe_act()
-        i2.maybe_act()
-        w1.try_consume_buffers()
-        w2.try_consume_buffers()
-        w3.try_consume_buffers()
-
-        try:
-            _Clock = FEL.get_nowait()
-        except Empty:
-            pass
-
-        for i in inspectors:
-            i.update()
-
-        for w in workstations:
-            w.update()
-        
-    #print final states
-    print('final buffer states: ')
-    print_buffers()
-    print('Products: ', product_list)
-
-    print('Inspector 1 time spent in states: ', i1.time_spent_in_states)
-    print('Inspector 2 time spent in states: ', i2.time_spent_in_states)
+    w1c1_buf_occup = []
+    w2c1_buf_occup = []
+    w2c2_buf_occup = []
+    w3c1_buf_occup = []
+    w3c3_buf_occup = []
 
 
+    for i in range(10):
 
+        _Clock = 0
+        #init workstations and inspectors
+        w1 = Workstation('W1', Component('C1'))
+        w2 = Workstation('W2', Component('C1'), Component('C2'))
+        w3 = Workstation('W3', Component('C1'), Component('C3'))
+        workstations = [w1, w2, w3]
+
+        i1 = Inspector('I1', workstations, Component('C1'))
+        i2 = Inspector('I2', workstations, Component('C2'), Component('C3'))
+        inspectors = [i1, i2]
+
+
+        #run the simulation loop 100 times
+        for i in range(10000):
+            i1.maybe_act()
+            i2.maybe_act()
+            w1.try_consume_buffers()
+            w2.try_consume_buffers()
+            w3.try_consume_buffers()
+
+            try:
+                _Clock = FEL.get_nowait()
+            except Empty:
+                pass
+
+            for i in inspectors:
+                i.update()
+
+            for w in workstations:
+                w.update()
+            
+        #print final states
+        print('final buffer states: ')
+        print_buffers()
+        print('Products: ', product_list)
+
+        print('Inspector 1 time spent in states: ', i1.time_spent_in_states)
+        print('Inspector 2 time spent in states: ', i2.time_spent_in_states)
+
+
+        w1c1_buf_occup.append(w1.total_components['C1']/_Clock)
+
+        w2c1_buf_occup.append(w2.total_components['C1']/_Clock)
+
+        w2c2_buf_occup.append(w2.total_components['C2']/_Clock)
+
+        w3c1_buf_occup.append(w3.total_components['C1']/_Clock)
+
+        w3c3_buf_occup.append(w3.total_components['C3']/_Clock)
+
+
+
+    print("w1c1 avg buf occup: ", sum(w1c1_buf_occup) / len(w1c1_buf_occup))
+    print('w1c1 stddev: ', stdev(w1c1_buf_occup))
+
+    print("w2c1 avg buf occup: ", sum(w2c1_buf_occup) / len(w2c1_buf_occup))
+    print('w2c1 stddev: ', stdev(w2c1_buf_occup))
+
+    print("w2c2 avg buf occup: ", sum(w2c2_buf_occup) / len(w2c2_buf_occup))
+    print('w2c2 stddev: ', stdev(w2c2_buf_occup))
+
+    print("w3c1 avg buf occup: ", sum(w3c1_buf_occup) / len(w3c1_buf_occup))
+    print('w3c1 stddev: ', stdev(w3c1_buf_occup))
+
+    print("w3c3 avg buf occup: ", sum(w3c3_buf_occup) / len(w3c3_buf_occup))
+    print('w3c3 stddev: ', stdev(w3c3_buf_occup))
 
 
 
