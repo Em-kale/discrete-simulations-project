@@ -5,6 +5,7 @@ import statistics
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 #GREEN: event added to the FEL
 #BLUE: is a buffer insertion
 #YELLOW: component/product ready to be consumed
@@ -143,6 +144,11 @@ class Workstation:
         for c in buffer_components:
             self.total_components[c.name] = 0
 
+        #metrics
+        self.total_components = {}
+        for c in buffer_components:
+            self.total_components[c.name] = 0
+
     def update(self):
         delay = _Clock - self._time_of_last_update
         global components_in_system
@@ -179,7 +185,6 @@ class Workstation:
                 self.num_of_components_in_workstation += (current_workstation_occupancy) * delay
                 components_in_system +=  current_workstation_occupancy * delay
     
-
         self._time_of_last_update = _Clock
         self.pass_time(delay)
         # self.try_consume_buffers()
@@ -551,6 +556,7 @@ if __name__ == '__main__':
     w2c2_buf_occup = []
     w3c1_buf_occup = []
     w3c3_buf_occup = []
+
     components_in_system_total = []
     component_times_in_system_total = []
     component_times_in_workstation1_total = []
@@ -576,9 +582,8 @@ if __name__ == '__main__':
         i1 = Inspector('I1', workstations, Component('C1'))
         i2 = Inspector('I2', workstations, Component('C2'), Component('C3'))
         inspectors = [i1, i2]
-        components_passed_through_system = 0 
 
-        #run the simulation loop 100 times
+        components_passed_through_system = 0 
 
         while components_passed_through_system < 11000:
             i1.maybe_act()
@@ -598,9 +603,9 @@ if __name__ == '__main__':
             for w in workstations:
                 w.update()
 
+
         update_statistics()
         generate_run_report()
-            
             
         #print final states
         print('final buffer states: ')
@@ -609,6 +614,7 @@ if __name__ == '__main__':
 
         print('Inspector 1 time spent in states: ', i1.time_spent_in_states)
         print('Inspector 2 time spent in states: ', i2.time_spent_in_states)
+
 
         buff_occ_avg = w1.total_components['C1']/_Clock
         w1c1_buf_occup.append(buff_occ_avg)
@@ -632,7 +638,6 @@ if __name__ == '__main__':
         component_times_in_workstation1_total.append(sum(w1.component_times_in_workstation)/len(w1.component_times_in_workstation))
         component_times_in_workstation2_total.append(sum(w2.component_times_in_workstation)/len(w2.component_times_in_workstation))
         component_times_in_workstation3_total.append(sum(w3.component_times_in_workstation)/len(w3.component_times_in_workstation))
-
         
     #print final states
     print('final buffer states: ')
