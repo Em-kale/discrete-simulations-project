@@ -2,6 +2,9 @@ from queue import Queue, PriorityQueue, Full, Empty
 import random
 from milestone2 import RandomNumberGenerator
 import statistics 
+import matplotlib.pyplot as plt
+import numpy as np
+
 
 #GREEN: event added to the FEL
 #BLUE: is a buffer insertion
@@ -24,10 +27,20 @@ _Clock = 0.0
 rng = RandomNumberGenerator(seed=12345)
 
 #statistics 
-components_in_system = [] 
-component_times_in_system = [] 
-individual_run_buffer_occupancies = {}
+current_iteration = 0 
+components_in_system = 0 
+components_in_workstation = {'1': [], '2': [], '3': []}
+component_times_in_system = {'total': [], '1': [], '2': [], '3': [], '4': [], '5': [], '6': [], '7': [],
+                              '8': [], '9': [], '10': [], '11': [], '12': [],
+                               '13': [], '14': [], '15': [], '16': [], '17': [],
+                                '18': [], '19': [], '20': [], '21': [], '22': [],
+                                 '23': [], '24': [], '25': [], '26': [], '27': [],
+                               '28': [], '29': [], '30': [], '31': [], '32': [],
+                                '33': [], '34': [], '35': [], '36': [], '37': []}
 
+component_pass_through_times = 0
+individual_run_buffer_occupancies = {}
+components_passed_through_system = 0 
 
 # define product list to track how many products were created
 product_list = {'P1': 0, 'P2': 0, 'P3': 0}
@@ -117,11 +130,19 @@ class Workstation:
         self.workstation_occupancy = []
         self.components_arrived = 0
         self.component_times_in_workstation =  [] 
+        self.num_of_components_in_workstation = 0
+        self.num_of_components_passed_through = 0 
         for c in buffer_components:
             self.buffers[c.name] = Queue(self._BUFFER_SIZE)
             self.buffer_occupancy[c.name] = [] 
             key = self.name + ":" + c.name
             individual_run_buffer_occupancies[key] = [] 
+        
+
+        #metrics
+        self.total_components = {}
+        for c in buffer_components:
+            self.total_components[c.name] = 0
 
         #metrics
         self.total_components = {}
@@ -130,15 +151,46 @@ class Workstation:
 
     def update(self):
         delay = _Clock - self._time_of_last_update
-
+        global components_in_system
         for key in self.buffers.keys():
             self.total_components[key] += self.buffers.get(key).qsize() * delay
+        
+        current_workstation_occupancy = 0 
+        if(self.name == 'W1'):
+            if self.current_product is not None: 
+                current_workstation_occupancy =  (self.buffers.get('C1').qsize() + 1) 
+                self.num_of_components_in_workstation += (current_workstation_occupancy) * delay
+                components_in_system +=  (current_workstation_occupancy + 2) * delay
+            else: 
+                current_workstation_occupancy = (self.buffers.get('C1').qsize()) 
+                self.num_of_components_in_workstation += (current_workstation_occupancy) * delay
+                components_in_system +=  (current_workstation_occupancy + 2) * delay
+        elif(self.name == 'W2'):
+            if self.current_product is not None: 
+                current_workstation_occupancy = (self.buffers.get('C1').qsize() + self.buffers.get('C2').qsize() + 2) 
+                self.num_of_components_in_workstation += (current_workstation_occupancy) * delay
+                components_in_system +=  current_workstation_occupancy * delay
+            else: 
+                current_workstation_occupancy = (self.buffers.get('C1').qsize() + self.buffers.get('C2').qsize()) 
+                self.num_of_components_in_workstation += (current_workstation_occupancy) * delay
+                components_in_system +=  current_workstation_occupancy * delay
 
+        elif(self.name == 'W3'): 
+            if self.current_product is not None: 
+                current_workstation_occupancy = (self.buffers.get('C1').qsize() + self.buffers.get('C3').qsize() + 2)
+                self.num_of_components_in_workstation += (current_workstation_occupancy) * delay
+                components_in_system +=  current_workstation_occupancy * delay
+            else: 
+                current_workstation_occupancy =  (self.buffers.get('C1').qsize() + self.buffers.get('C3').qsize() )
+                self.num_of_components_in_workstation += (current_workstation_occupancy) * delay
+                components_in_system +=  current_workstation_occupancy * delay
+    
         self._time_of_last_update = _Clock
         self.pass_time(delay)
         # self.try_consume_buffers()
     
     def add_to_buffer(self, current_comp):
+        self.num_of_components_passed_through = self.num_of_components_passed_through + 1
         self.buffers[current_comp.name].put_nowait(current_comp)
         
         current_comp.set_buffer_time() 
@@ -166,6 +218,8 @@ class Workstation:
     # check if all buffers have at least one component in them, if so consume and add to FEL
     def try_consume_buffers(self):
         all_non_empty = True
+        global components_passed_through_system
+        global component_pass_through_times
         for q in self.buffers.values():
             
             if q.qsize() == 0:
@@ -179,19 +233,30 @@ class Workstation:
            
 
             if self.current_product.name == 'P1':
-                components_in_system.append(components_in_system[-1:][0]- 1)
-                component_times_in_system.append(_Clock - self.current_product.components[0].get_arrival_time())
-                self.workstation_occupancy.append(self.workstation_occupancy[-1:][0] - 1)
+          #      component_times_in_system["total"].append(_Clock - self.current_product.components[0].get_arrival_time())
+           #     component_times_in_system[str(current_iteration)].append(_Clock - self.current_product.components[0].get_arrival_time())
+            
+                component_pass_through_times = component_pass_through_times + (_Clock - self.current_product.components[0].get_arrival_time())
+            
+                components_passed_through_system = components_passed_through_system + 1
                 #statistics
                 self.component_times_in_workstation.append(_Clock - self.components[0].get_buffer_arrival_time())
-                self.components.pop(0) 
+                del self.components[0]
+
             elif self.current_product.name == 'P2' or self.current_product.name == 'P3':
-                components_in_system.append(components_in_system[-1:][0] - 2)
-                component_times_in_system.append(_Clock - self.current_product.components[0].get_arrival_time())
-                component_times_in_system.append(_Clock - self.current_product.components[1].get_arrival_time())
-                self.workstation_occupancy.append(self.workstation_occupancy[-1:][0]- 2)
+              #  component_times_in_system['total'].append(_Clock - self.current_product.components[0].get_arrival_time())
+             #   component_times_in_system['total'].append(_Clock - self.current_product.components[1].get_arrival_time())
+              #  component_times_in_system[str(current_iteration)].append(_Clock - self.current_product.components[0].get_arrival_time())
+             #   component_times_in_system[str(current_iteration)].append(_Clock - self.current_product.components[1].get_arrival_time())
+               
+                component_pass_through_times = component_pass_through_times + (_Clock - self.current_product.components[0].get_arrival_time())
+                component_pass_through_times = component_pass_through_times + (_Clock - self.current_product.components[1].get_arrival_time())
+               
+                components_passed_through_system = components_passed_through_system + 2
+               
                 self.component_times_in_workstation.append(_Clock - self.components[0].get_buffer_arrival_time())
                 self.component_times_in_workstation.append(_Clock - self.components[1].get_buffer_arrival_time())
+
                 print(self.components)
                 del self.components[0] 
                 del self.components[0] 
@@ -259,13 +324,15 @@ class Inspector:
         self.current_comp = None
         self.inspection_time_left = 0.0
         self._time_of_last_update = 0.0
-
+        self.percentage_time_blocked = 0 
         self.time_spent_in_states = {}
-
+        self.inspection_times = [] 
         #reference to workstations
+        self.num_arrivals = 0 
         self._workstations = workstations
 
     def generate_report(self):
+        self.percentage_time_blocked = self.time_spent_in_states['blocked']/(self.time_spent_in_states['working'] + self.time_spent_in_states['blocked'])
         print(f"Percentage blocked {self.name}: {self.time_spent_in_states['blocked']/(self.time_spent_in_states['working'] + self.time_spent_in_states['blocked'])}")
 
     def update(self):
@@ -276,6 +343,7 @@ class Inspector:
         self.time_spent_in_states.update({state_since_last_update: time_already_spent_in_this_state + delay})
 
         self._time_of_last_update = _Clock
+
         self.pass_time(delay)
         # self.maybe_act()
 
@@ -292,20 +360,20 @@ class Inspector:
             #try to move item to buffer. If successful, change current item to null
             got_rid = self.try_to_move_component_to_buffer(self.current_comp)
             if got_rid:
+               
+                self.inspection_times.append(_Clock - self.current_comp.get_arrival_time())
                 self.current_comp = None
                 #self.add_event_to_FEL(0.0, "buffer got new component")
 
         if self.current_comp != None:
             print(f'{bcolors.FAIL}[{_Clock}s] {self}:{bcolors.ENDC} still working or still blocked on {self.current_comp}')
             return # still working or still blocked
-
+        
+        self.num_arrivals = self.num_arrivals + 1
         self.current_comp = self.get_new_component()
         self.inspection_time_left = self.current_comp.get_inspection_time()
         
-        if not components_in_system:
-            components_in_system.append(1)
-        else:
-            components_in_system.append(components_in_system[-1:][0] + 1)
+    
 
         self.add_event_to_FEL(self.inspection_time_left, 'finished inspecting ' + str(self.current_comp))
 
@@ -384,27 +452,94 @@ def update_statistics():
     w2.update_statistics() 
     w3.update_statistics() 
 
-def generate_system_report():
-    print("\n_________ OVERALL SYSTEM STATISTICS ____________ \n")
-    print('Occupancy mean for W1:C1: ', sum(individual_run_buffer_occupancies['W1:C1'])/len(individual_run_buffer_occupancies['W1:C1']))
-    print('Occupancy mean for W2:C1: ', sum(individual_run_buffer_occupancies['W2:C1'])/len(individual_run_buffer_occupancies['W2:C1']))
-    print('Occupancy mean for W2:C2: ', sum(individual_run_buffer_occupancies['W2:C2'])/len(individual_run_buffer_occupancies['W2:C2']))
-    print('Occupancy mean for W3:C1: ', sum(individual_run_buffer_occupancies['W3:C1'])/len(individual_run_buffer_occupancies['W3:C1']))
-    print('Occupancy mean for W3:C3: ', sum(individual_run_buffer_occupancies['W3:C3'])/len(individual_run_buffer_occupancies['W3:C3']))
-    print('Stand dev of means for W1:C1:', statistics.stdev((individual_run_buffer_occupancies['W1:C1'])))
-    print('Stand dev of means for W2:C1:', statistics.stdev((individual_run_buffer_occupancies['W2:C1'])))
-    print('Stand dev of means for W2:C2:', statistics.stdev((individual_run_buffer_occupancies['W2:C2'])))
-    print('Stand dev of means for W3:C1:', statistics.stdev((individual_run_buffer_occupancies['W3:C1'])))
-    print('Stand dev of means for W3:C3:', statistics.stdev((individual_run_buffer_occupancies['W3:C3'])))
+
+#def plot_ensemble_means():
+#    means = [] 
+#    i = 0
+#    min_components =  min(len(component_times_in_system['1']), 
+#                          len(component_times_in_system['2']), len(component_times_in_system['3']),
+#                          len(component_times_in_system['4']), len(component_times_in_system['5']), 
+#                          len(component_times_in_system['6'])
+#                          )
+#    cumulative_average = [] 
+#    
+#    while i < min_components:
+#        result = (component_times_in_system['1'][i] + component_times_in_system['2'][i] + component_times_in_system['3'][i] + component_times_in_system['4'][i] + component_times_in_system['5'][i] + component_times_in_system['6'][i]) / current_iteration 
+#        means.append(result)
+#        cumulative_average.append(sum(means)/len(means))
+#        i = i + 1
+#
+#    components_through_system = range(0, min_components)
+#    plt.plot( means)
+#    a, b = np.polyfit(np.array(components_through_system), np.array(means), 1)
+#    plt.plot(cumulative_average)
+#    plt.ylabel('Performance Measure')
+#    plt.xlabel('Number of Components Through System')
+#    plt.title('Welch Plot')
+#
+ #   plt.savefig('welch.png')
+ #   plt.clf()
+
+
+def run_replication_analysis(): 
+    run1_average = sum(component_times_in_system['1'][1000:10000])/9000
+    run2_average = sum(component_times_in_system['2'][1000:10000])/9000
+    run3_average = sum(component_times_in_system['3'][1000:10000])/9000
+    run4_average = sum(component_times_in_system['4'][1000:10000])/9000
+    run5_average = sum(component_times_in_system['5'][1000:10000])/9000
+    run6_average = sum(component_times_in_system['6'][1000:10000])/9000
+    print("replication 1 times in system average", run1_average)
+    print("replication 2 times in system average", run2_average)
+    print("replication 3 times in system average", run3_average)
+    print("replication 4 times in system average", run4_average)
+    print("replication 5 times in system average", run5_average)
+    print("replication 6 times in system average", run6_average)
     
+def generate_system_report():
+    
+    print("\n_________ OVERALL SYSTEM STATISTICS ____________ \n")
+ 
+    print("w1c1 avg buf occup: ", sum(w1c1_buf_occup) / len(w1c1_buf_occup))
+    print('w1c1 stddev: ', statistics.stdev(w1c1_buf_occup))
+
+    print("w2c1 avg buf occup: ", sum(w2c1_buf_occup) / len(w2c1_buf_occup))
+    print('w2c1 stddev: ', statistics.stdev(w2c1_buf_occup))
+
+    print("w2c2 avg buf occup: ", sum(w2c2_buf_occup) / len(w2c2_buf_occup))
+    print('w2c2 stddev: ', statistics.stdev(w2c2_buf_occup))
+    
+    print("w3c1 avg buf occup: ", sum(w3c1_buf_occup) / len(w3c1_buf_occup))
+    print('w3c1 stddev: ', statistics.stdev(w3c1_buf_occup))
+
+    print("w3c3 avg buf occup: ", sum(w3c3_buf_occup) / len(w3c3_buf_occup))
+    print('w3c3 stddev: ', statistics.stdev(w3c3_buf_occup))
+
+    print("avg num of components in w1: ", sum(components_in_workstation['1']) / len(components_in_workstation['1']))
+    print("avg num of components in w2: ", sum(components_in_workstation['2']) / len(components_in_workstation['2']))
+    print("avg num of components in w3: ", sum(components_in_workstation['3']) / len(components_in_workstation['3']))
+    print("components_in_system_total: ", components_in_system_total)
+    print("avg num of components in system: ", sum(components_in_system_total) / len(components_in_system_total))
+    print("avg num of time in system: ", sum(component_times_in_system_total) / len(component_times_in_system_total))
+
+    print("arrival rate:", sum(arrival_rates)/len(arrival_rates))
+    print("workstation 1 arrival rate", sum(workstation1_arrival_rates)/len(workstation1_arrival_rates))
+    print("Workstation 1 avg num of components in system", sum(components_in_workstation['1'])/len(components_in_workstation['1']))
+    print("workstation 1 avg time in system", sum(component_times_in_workstation1_total)/len(component_times_in_workstation1_total))
+    
+    print("workstation 2 arrival rate", sum(workstation2_arrival_rates)/len(workstation2_arrival_rates))
+    print("Workstation 2 avg num of components in system", sum(components_in_workstation['2'])/len(components_in_workstation['2']))
+    print("workstation 2 avg time in system", sum(component_times_in_workstation2_total)/len(component_times_in_workstation2_total))
+
+    print("workstation 3 arrival rate", sum(workstation3_arrival_rates)/len(workstation3_arrival_rates))
+    print("Workstation 3 avg num of components in system", sum(components_in_workstation['3'])/len(components_in_workstation['3']))
+    print("workstation 3 avg time in system", sum(component_times_in_workstation3_total)/len(component_times_in_workstation3_total))
 
 def generate_run_report(): 
     print("\n_________ SYSTEM STATISTICS ____________ \n")
     print('Products: ', product_list)
-    print('Average components in system', sum(components_in_system)/len(components_in_system))
-    print('Average time component spends in system', sum(component_times_in_system)/len(component_times_in_system))
+  #  print('Average time component spends in system', sum(component_times_in_system['total'])/len(component_times_in_system['total']))
     print('System Throughput', (product_list['P1'] + product_list['P2'] + product_list['P3']) / _Clock)
-   
+    
     print("\n_________ INSPECTOR 2 STATISTICS ____________ \n")
     i2.generate_report()
     
@@ -416,16 +551,26 @@ def generate_run_report():
     w3.generate_report()
 
 if __name__ == '__main__':
-
-
     w1c1_buf_occup = []
     w2c1_buf_occup = []
     w2c2_buf_occup = []
     w3c1_buf_occup = []
     w3c3_buf_occup = []
 
-
-    for i in range(10):
+    components_in_system_total = []
+    component_times_in_system_total = []
+    component_times_in_workstation1_total = []
+    component_times_in_workstation2_total = [] 
+    component_times_in_workstation3_total = [] 
+    workstation1_arrival_rates = [] 
+    workstation2_arrival_rates = [] 
+    workstation3_arrival_rates = [] 
+    component_throughput = [] 
+    arrival_rates = [] 
+    for i in range(1, 9):
+        current_iteration = i
+        components_in_system = 0 
+        component_pass_through_times = 0
 
         _Clock = 0
         #init workstations and inspectors
@@ -438,9 +583,9 @@ if __name__ == '__main__':
         i2 = Inspector('I2', workstations, Component('C2'), Component('C3'))
         inspectors = [i1, i2]
 
+        components_passed_through_system = 0 
 
-        #run the simulation loop 100 times
-        for i in range(10000):
+        while components_passed_through_system < 11000:
             i1.maybe_act()
             i2.maybe_act()
             w1.try_consume_buffers()
@@ -458,6 +603,10 @@ if __name__ == '__main__':
             for w in workstations:
                 w.update()
 
+
+        update_statistics()
+        generate_run_report()
+            
         #print final states
         print('final buffer states: ')
         print_buffers()
@@ -467,45 +616,36 @@ if __name__ == '__main__':
         print('Inspector 2 time spent in states: ', i2.time_spent_in_states)
 
 
-        w1c1_buf_occup.append(w1.total_components['C1']/_Clock)
-
+        buff_occ_avg = w1.total_components['C1']/_Clock
+        w1c1_buf_occup.append(buff_occ_avg)
         w2c1_buf_occup.append(w2.total_components['C1']/_Clock)
-
         w2c2_buf_occup.append(w2.total_components['C2']/_Clock)
-
         w3c1_buf_occup.append(w3.total_components['C1']/_Clock)
-
         w3c3_buf_occup.append(w3.total_components['C3']/_Clock)
 
-
-
-    print("w1c1 avg buf occup: ", sum(w1c1_buf_occup) / len(w1c1_buf_occup))
-    print('w1c1 stddev: ', stdev(w1c1_buf_occup))
-
-    print("w2c1 avg buf occup: ", sum(w2c1_buf_occup) / len(w2c1_buf_occup))
-    print('w2c1 stddev: ', stdev(w2c1_buf_occup))
-
-    print("w2c2 avg buf occup: ", sum(w2c2_buf_occup) / len(w2c2_buf_occup))
-    print('w2c2 stddev: ', stdev(w2c2_buf_occup))
-
-    update_statistics()
-
+        components_in_workstation['1'].append(w1.num_of_components_in_workstation / _Clock)
+        components_in_workstation['2'].append(w2.num_of_components_in_workstation / _Clock)
+        components_in_workstation['3'].append(w3.num_of_components_in_workstation / _Clock)
+        
+        components_in_system_total.append(components_in_system / _Clock)
+        component_times_in_system_total.append(component_pass_through_times/components_passed_through_system)
+        
+        arrival_rates.append((i1.num_arrivals + i2.num_arrivals)/_Clock)
+        workstation1_arrival_rates.append(w1.num_of_components_passed_through/_Clock)
+        workstation2_arrival_rates.append(w2.num_of_components_passed_through/_Clock)
+        workstation3_arrival_rates.append(w3.num_of_components_passed_through/_Clock)
+        
+        component_times_in_workstation1_total.append(sum(w1.component_times_in_workstation)/len(w1.component_times_in_workstation))
+        component_times_in_workstation2_total.append(sum(w2.component_times_in_workstation)/len(w2.component_times_in_workstation))
+        component_times_in_workstation3_total.append(sum(w3.component_times_in_workstation)/len(w3.component_times_in_workstation))
         
     #print final states
     print('final buffer states: ')
     print_buffers()
-    generate_run_report()
-    print(individual_run_buffer_occupancies)
+    
     generate_system_report()
 
-
-    print("w3c1 avg buf occup: ", sum(w3c1_buf_occup) / len(w3c1_buf_occup))
-    print('w3c1 stddev: ', stdev(w3c1_buf_occup))
-
-    print("w3c3 avg buf occup: ", sum(w3c3_buf_occup) / len(w3c3_buf_occup))
-    print('w3c3 stddev: ', stdev(w3c3_buf_occup))
-
-
-
+   # plot_ensemble_means()
+    run_replication_analysis()
 
 
