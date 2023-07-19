@@ -5,4 +5,4 @@ This project is a simulation for a fictional factory for a discrete simulations 
 
 ## Running
 
-To run the script yourself, make sure all the data and helper files are included, and simlply run the simulatoin.py file. 
+To run the script yourself, make sure all the data and helper files are included, and simlply run the simulation.py file. 
